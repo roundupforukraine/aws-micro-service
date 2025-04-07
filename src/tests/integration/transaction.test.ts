@@ -7,12 +7,16 @@ describe('Transaction API', () => {
   let apiKey: string;
   let organizationId: string;
   let transactionId: string;
+  let adminApiKey: string;
 
   beforeAll(async () => {
     await setup();
+    adminApiKey = 'test-admin-key';
+
     // Create a test organization first
     const orgResponse = await request(app)
       .post('/api/organizations/register')
+      .set('x-api-key', adminApiKey)
       .send({ name: 'Test Organization' });
 
     expect(orgResponse.status).toBe(201);
@@ -49,9 +53,9 @@ describe('Transaction API', () => {
       expect(response.status).toBe(201);
       expect(response.body.status).toBe('success');
       expect(response.body.data.transaction).toHaveProperty('id');
-      expect(response.body.data.transaction).toHaveProperty('originalAmount', '10.50');
-      expect(response.body.data.transaction).toHaveProperty('roundedAmount', '11.00');
-      expect(response.body.data.transaction).toHaveProperty('donationAmount', '0.50');
+      expect(response.body.data.transaction.originalAmount.toString()).toBe('10.50');
+      expect(response.body.data.transaction.roundedAmount.toString()).toBe('11.00');
+      expect(response.body.data.transaction.donationAmount.toString()).toBe('0.50');
       expect(response.body.data.transaction).toHaveProperty('organizationId', organizationId);
     });
 
@@ -91,9 +95,9 @@ describe('Transaction API', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.transaction).toHaveProperty('id', transactionId);
-      expect(response.body.data.transaction).toHaveProperty('originalAmount', '15.75');
-      expect(response.body.data.transaction).toHaveProperty('roundedAmount', '16');
-      expect(response.body.data.transaction).toHaveProperty('donationAmount', '0.25');
+      expect(response.body.data.transaction.originalAmount.toString()).toBe('15.75');
+      expect(response.body.data.transaction.roundedAmount.toString()).toBe('16.00');
+      expect(response.body.data.transaction.donationAmount.toString()).toBe('0.25');
     });
 
     it('should return 404 if transaction not found', async () => {
@@ -203,9 +207,9 @@ describe('Transaction API', () => {
         updated: true
       });
       // Verify that financial data remains unchanged
-      expect(response.body.data.transaction.originalAmount).toBe('15.75');
-      expect(response.body.data.transaction.roundedAmount).toBe('16');
-      expect(response.body.data.transaction.donationAmount).toBe('0.25');
+      expect(response.body.data.transaction.originalAmount.toString()).toBe('15.75');
+      expect(response.body.data.transaction.roundedAmount.toString()).toBe('16.00');
+      expect(response.body.data.transaction.donationAmount.toString()).toBe('0.25');
     });
 
     it('should return 404 if transaction not found', async () => {

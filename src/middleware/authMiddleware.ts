@@ -29,15 +29,12 @@ export const adminAuth = async (req: Request, res: Response, next: NextFunction)
     }
 
     // Find admin organization by API key
-    const adminOrg = await prismaClient.organization.findFirst({
-      where: { 
-        apiKey,
-        isAdmin: true
-      },
+    const adminOrg = await prismaClient.organization.findUnique({
+      where: { apiKey },
     });
 
     // Return 403 if API key is not an admin key
-    if (!adminOrg) {
+    if (!adminOrg || !adminOrg.isAdmin) {
       throw new AppError('Invalid admin API key', 403);
     }
 

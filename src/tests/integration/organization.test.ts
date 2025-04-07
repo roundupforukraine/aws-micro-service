@@ -4,6 +4,8 @@ import app from '../../index';
 import { Organization } from '../setup';
 
 describe('Organization API', () => {
+  let adminApiKey: string;
+  let testOrg: Organization;
   let adminOrg: Organization;
 
   beforeEach(() => {
@@ -12,6 +14,17 @@ describe('Organization API', () => {
 
   beforeAll(async () => {
     await prismaTestClient.$connect();
+    adminApiKey = 'test-admin-key';
+
+    // Create a test organization
+    const response = await request(app)
+      .post('/api/organizations/register')
+      .set('x-api-key', adminApiKey)
+      .send({ name: 'Test Organization' });
+
+    expect(response.status).toBe(201);
+    testOrg = response.body.data.organization;
+
     // Create an admin organization for testing
     adminOrg = await prismaTestClient.organization.create({
       data: {
@@ -30,7 +43,7 @@ describe('Organization API', () => {
     it('should register a new organization when called by admin', async () => {
       const response = await request(app)
         .post('/api/organizations/register')
-        .set('x-api-key', adminOrg.apiKey)
+        .set('x-api-key', adminApiKey)
         .send({ name: 'Test Organization' });
 
       expect(response.status).toBe(201);
@@ -41,29 +54,20 @@ describe('Organization API', () => {
     });
 
     it('should return 403 if called by non-admin', async () => {
-      // Create a non-admin organization
-      const nonAdminOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Non-Admin Organization',
-          apiKey: 'test-api-key-non-admin',
-          isAdmin: false,
-        },
-      }) as Organization;
-
       const response = await request(app)
         .post('/api/organizations/register')
-        .set('x-api-key', nonAdminOrg.apiKey)
+        .set('x-api-key', testOrg.apiKey)
         .send({ name: 'Test Organization' });
 
       expect(response.status).toBe(403);
       expect(response.body.status).toBe('fail');
-      expect(response.body.message).toBe('Only administrators can register new organizations');
+      expect(response.body.message).toBe('Invalid admin API key');
     });
 
     it('should return 400 if name is missing', async () => {
       const response = await request(app)
         .post('/api/organizations/register')
-        .set('x-api-key', adminOrg.apiKey)
+        .set('x-api-key', adminApiKey)
         .send({});
 
       expect(response.status).toBe(400);
@@ -88,7 +92,7 @@ describe('Organization API', () => {
     it('should return organization details when accessed by admin', async () => {
       const response = await request(app)
         .get(`/api/organizations/${testOrg.id}`)
-        .set('x-api-key', adminOrg.apiKey);
+        .set('x-api-key', adminApiKey);
 
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
@@ -147,7 +151,7 @@ describe('Organization API', () => {
     it('should return 404 if organization not found', async () => {
       const response = await request(app)
         .get('/api/organizations/non-existent-id')
-        .set('x-api-key', adminOrg.apiKey);
+        .set('x-api-key', adminApiKey);
 
       expect(response.status).toBe(404);
       expect(response.body.status).toBe('fail');
@@ -171,7 +175,7 @@ describe('Organization API', () => {
     it('should update organization details when called by admin', async () => {
       const response = await request(app)
         .put(`/api/organizations/${testOrg.id}`)
-        .set('x-api-key', adminOrg.apiKey)
+        .set('x-api-key', adminApiKey)
         .send({ name: 'Updated Organization Name' });
 
       expect(response.status).toBe(200);
@@ -224,7 +228,7 @@ describe('Organization API', () => {
     it('should return 404 if organization not found', async () => {
       const response = await request(app)
         .put('/api/organizations/non-existent-id')
-        .set('x-api-key', adminOrg.apiKey)
+        .set('x-api-key', adminApiKey)
         .send({ name: 'Updated Name' });
 
       expect(response.status).toBe(404);

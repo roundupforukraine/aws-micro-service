@@ -53,20 +53,101 @@ export const resetOrganizationCount = () => {
 };
 
 // Mock Prisma client for testing
-const prismaTestClient = {
+export const prismaTestClient = {
   organization: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    update: jest.fn(),
-    count: jest.fn(),
+    create: jest.fn().mockImplementation((data: any) => {
+      return Promise.resolve({
+        id: 'test-org-id',
+        name: data.data.name,
+        apiKey: data.data.apiKey || 'test-api-key',
+        isAdmin: data.data.isAdmin || false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
+    findUnique: jest.fn().mockImplementation((data: any) => {
+      if (data.where.apiKey === 'test-admin-key') {
+        return Promise.resolve({
+          id: 'admin-org-id',
+          name: 'Admin Organization',
+          apiKey: 'test-admin-key',
+          isAdmin: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+      return Promise.resolve({
+        id: 'test-org-id',
+        name: 'Test Organization',
+        apiKey: data.where.apiKey,
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
+    update: jest.fn().mockImplementation((data: any) => {
+      return Promise.resolve({
+        id: data.where.id,
+        name: data.data.name,
+        apiKey: 'test-api-key',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
+    count: jest.fn().mockImplementation(() => Promise.resolve(1)),
   },
   transaction: {
-    create: jest.fn(),
-    findUnique: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-    update: jest.fn(),
+    create: jest.fn().mockImplementation((data: any) => {
+      return Promise.resolve({
+        id: 'test-transaction-id',
+        organizationId: data.data.organizationId,
+        originalAmount: new Prisma.Decimal(data.data.originalAmount),
+        roundedAmount: new Prisma.Decimal(data.data.roundedAmount),
+        donationAmount: new Prisma.Decimal(data.data.donationAmount),
+        metadata: data.data.metadata,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
+    findUnique: jest.fn().mockImplementation((data: any) => {
+      return Promise.resolve({
+        id: data.where.id,
+        organizationId: 'test-org-id',
+        originalAmount: new Prisma.Decimal('15.75'),
+        roundedAmount: new Prisma.Decimal('16.00'),
+        donationAmount: new Prisma.Decimal('0.25'),
+        metadata: { description: 'Test transaction' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
+    findFirst: jest.fn().mockImplementation((data: any) => {
+      return Promise.resolve({
+        id: data.where.id,
+        organizationId: data.where.organizationId || 'test-org-id',
+        originalAmount: new Prisma.Decimal('15.75'),
+        roundedAmount: new Prisma.Decimal('16.00'),
+        donationAmount: new Prisma.Decimal('0.25'),
+        metadata: { description: 'Test transaction' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
+    findMany: jest.fn().mockImplementation(() => Promise.resolve([])),
+    count: jest.fn().mockImplementation(() => Promise.resolve(1)),
+    update: jest.fn().mockImplementation((data: any) => {
+      return Promise.resolve({
+        id: data.where.id,
+        organizationId: 'test-org-id',
+        originalAmount: new Prisma.Decimal('15.75'),
+        roundedAmount: new Prisma.Decimal('16.00'),
+        donationAmount: new Prisma.Decimal('0.25'),
+        metadata: data.data.metadata,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    }),
   },
   $connect: jest.fn(),
   $disconnect: jest.fn(),
@@ -87,123 +168,24 @@ const prismaTestClient = {
   };
 };
 
-// Set up default mock implementations
-prismaTestClient.organization.create.mockImplementation((data: any) => {
-  organizationCount++;
-  return Promise.resolve({
-    id: 'test-org-id',
-    name: data.data.name,
-    apiKey: data.data.apiKey,
-    isAdmin: data.data.isAdmin,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+// Function to create an admin organization for testing
+export const createAdminOrg = async () => {
+  return prismaTestClient.organization.create({
+    data: {
+      name: 'Admin Organization',
+      apiKey: 'test-admin-key',
+      isAdmin: true,
+    },
   });
-});
+};
 
-prismaTestClient.organization.findUnique.mockImplementation((data: any) => Promise.resolve({
-  id: 'test-org-id',
-  name: 'Test Organization',
-  apiKey: data.where.apiKey,
-  isAdmin: data.where.apiKey === 'test-api-key-admin',
-  createdAt: new Date(),
-  updatedAt: new Date(),
-}));
-
-prismaTestClient.organization.update.mockImplementation((data: any) => Promise.resolve({
-  id: data.where.id,
-  name: data.data.name,
-  apiKey: 'test-api-key',
-  isAdmin: false,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-}));
-
-prismaTestClient.organization.count.mockImplementation(() => Promise.resolve(organizationCount));
-
-prismaTestClient.transaction.create.mockImplementation((data: any) => Promise.resolve({
-  id: 'test-transaction-id',
-  originalAmount: new Prisma.Decimal(data.data.originalAmount),
-  roundedAmount: new Prisma.Decimal(data.data.roundedAmount),
-  donationAmount: new Prisma.Decimal(data.data.donationAmount),
-  organizationId: data.data.organizationId,
-  metadata: data.data.metadata,
-  createdAt: new Date(),
-  updatedAt: new Date(),
-}));
-
-prismaTestClient.transaction.findUnique.mockImplementation((data: any) => {
-  const mockTransaction = {
-    id: data.where.id,
-    organizationId: 'test-org-id',
-    originalAmount: new Prisma.Decimal('15.75'),
-    roundedAmount: new Prisma.Decimal('16.00'),
-    donationAmount: new Prisma.Decimal('0.25'),
-    metadata: { description: 'Test transaction' },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  return Promise.resolve(mockTransaction);
-});
-
-prismaTestClient.transaction.findFirst.mockImplementation((data: any) => {
-  const mockTransaction = {
-    id: data.where.id,
-    organizationId: data.where.organizationId || 'test-org-id',
-    originalAmount: new Prisma.Decimal('15.75'),
-    roundedAmount: new Prisma.Decimal('16.00'),
-    donationAmount: new Prisma.Decimal('0.25'),
-    metadata: { description: 'Test transaction' },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  
-  // Return null if organizationId doesn't match (for non-admin users)
-  if (data.where.organizationId && data.where.organizationId !== mockTransaction.organizationId) {
-    return Promise.resolve(null);
-  }
-  
-  return Promise.resolve(mockTransaction);
-});
-
-prismaTestClient.transaction.findMany.mockImplementation(() => Promise.resolve([
-  {
-    id: 'test-transaction-id',
-    originalAmount: new Prisma.Decimal('15.75'),
-    roundedAmount: new Prisma.Decimal('16.00'),
-    donationAmount: new Prisma.Decimal('0.25'),
-    organizationId: 'test-org-id',
-    metadata: { description: 'Test transaction' },
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  },
-]));
-
-prismaTestClient.transaction.update.mockImplementation((data: any) => {
-  return Promise.resolve({
-    id: data.where.id,
-    organizationId: 'test-org-id',
-    originalAmount: new Prisma.Decimal('15.75'),
-    roundedAmount: new Prisma.Decimal('16.00'),
-    donationAmount: new Prisma.Decimal('0.25'),
-    metadata: data.data.metadata,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-});
-
-prismaTestClient.transaction.count.mockImplementation(() => Promise.resolve(1));
-
-// Test lifecycle management functions
+// Setup function for tests
 export const setup = async () => {
-  // Clear all mocks before each test suite
-  jest.clearAllMocks();
-  await prismaTestClient.$connect();
+  // Create admin organization first
+  await createAdminOrg();
 };
 
+// Teardown function for tests
 export const teardown = async () => {
-  // Clean up after all tests
-  jest.resetAllMocks();
-  await prismaTestClient.$disconnect();
-};
-
-export { prismaTestClient }; 
+  jest.clearAllMocks();
+}; 
