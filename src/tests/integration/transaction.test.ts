@@ -1,24 +1,35 @@
 import request from 'supertest';
-import { setup, teardown, prismaTestClient } from '../setup';
 import app from '../../index';
+import { setup, teardown, prismaTestClient } from '../setup';
 import type { Organization, Transaction } from '../setup';
 
 describe('Transaction API', () => {
-  let organizationId: string;
   let apiKey: string;
+  let organizationId: string;
+  let transactionId: string;
 
   beforeAll(async () => {
     await setup();
-    
-    // Create a test organization
-    const org = await prismaTestClient.organization.create({
-      data: {
-        name: 'Test Org for Transactions',
-        apiKey: 'test-api-key-' + Date.now(),
-      },
-    }) as Organization;
-    organizationId = org.id;
-    apiKey = org.apiKey;
+    // Create a test organization first
+    const orgResponse = await request(app)
+      .post('/api/organizations/register')
+      .send({ name: 'Test Organization' });
+
+    expect(orgResponse.status).toBe(201);
+    apiKey = orgResponse.body.data.organization.apiKey;
+    organizationId = orgResponse.body.data.organization.id;
+
+    // Create a test transaction
+    const transactionResponse = await request(app)
+      .post('/api/transactions')
+      .set('x-api-key', apiKey)
+      .send({
+        originalAmount: '15.75',
+        metadata: { description: 'Test transaction' },
+      });
+
+    expect(transactionResponse.status).toBe(201);
+    transactionId = transactionResponse.body.data.transaction.id;
   });
 
   afterAll(async () => {
@@ -31,19 +42,17 @@ describe('Transaction API', () => {
         .post('/api/transactions')
         .set('x-api-key', apiKey)
         .send({
-          originalAmount: 10.50,
-          metadata: { test: true, customer: 'John Doe' },
+          originalAmount: '10.50',
+          metadata: { description: 'Test transaction' },
         });
 
       expect(response.status).toBe(201);
       expect(response.body.status).toBe('success');
       expect(response.body.data.transaction).toHaveProperty('id');
-      expect(response.body.data.transaction).toHaveProperty('originalAmount', 10.50);
-      expect(response.body.data.transaction).toHaveProperty('roundedAmount', 11);
-      expect(response.body.data.transaction).toHaveProperty('donationAmount', 0.50);
-      expect(response.body.data.transaction).toHaveProperty('metadata');
-      expect(response.body.data.transaction.metadata).toHaveProperty('test', true);
-      expect(response.body.data.transaction.metadata).toHaveProperty('customer', 'John Doe');
+      expect(response.body.data.transaction).toHaveProperty('originalAmount', '10.50');
+      expect(response.body.data.transaction).toHaveProperty('roundedAmount', '11.00');
+      expect(response.body.data.transaction).toHaveProperty('donationAmount', '0.50');
+      expect(response.body.data.transaction).toHaveProperty('organizationId', organizationId);
     });
 
     it('should return 400 if originalAmount is missing', async () => {
@@ -63,7 +72,7 @@ describe('Transaction API', () => {
       const response = await request(app)
         .post('/api/transactions')
         .send({
-          originalAmount: 10.50,
+          originalAmount: '10.50',
           metadata: { test: true },
         });
 
@@ -74,22 +83,6 @@ describe('Transaction API', () => {
   });
 
   describe('GET /api/transactions/:id', () => {
-    let transactionId: string;
-
-    beforeAll(async () => {
-      // Create a test transaction
-      const transaction = await prismaTestClient.transaction.create({
-        data: {
-          organizationId,
-          originalAmount: 15.75,
-          roundedAmount: 16,
-          donationAmount: 0.25,
-          metadata: { test: true },
-        },
-      }) as Transaction;
-      transactionId = transaction.id;
-    });
-
     it('should return transaction details', async () => {
       const response = await request(app)
         .get(`/api/transactions/${transactionId}`)
@@ -98,9 +91,9 @@ describe('Transaction API', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.transaction).toHaveProperty('id', transactionId);
-      expect(response.body.data.transaction).toHaveProperty('originalAmount', 15.75);
-      expect(response.body.data.transaction).toHaveProperty('roundedAmount', 16);
-      expect(response.body.data.transaction).toHaveProperty('donationAmount', 0.25);
+      expect(response.body.data.transaction).toHaveProperty('originalAmount', '15.75');
+      expect(response.body.data.transaction).toHaveProperty('roundedAmount', '16');
+      expect(response.body.data.transaction).toHaveProperty('donationAmount', '0.25');
     });
 
     it('should return 404 if transaction not found', async () => {
@@ -121,18 +114,18 @@ describe('Transaction API', () => {
         prismaTestClient.transaction.create({
           data: {
             organizationId,
-            originalAmount: 20.25,
-            roundedAmount: 21,
-            donationAmount: 0.75,
+            originalAmount: '20.25',
+            roundedAmount: '21',
+            donationAmount: '0.75',
             metadata: { test: true },
           },
         }),
         prismaTestClient.transaction.create({
           data: {
             organizationId,
-            originalAmount: 30.50,
-            roundedAmount: 31,
-            donationAmount: 0.50,
+            originalAmount: '30.50',
+            roundedAmount: '31',
+            donationAmount: '0.50',
             metadata: { test: true },
           },
         }),

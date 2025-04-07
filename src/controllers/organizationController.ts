@@ -2,9 +2,11 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import crypto from 'crypto';
+import { prisma } from '../config/database';
+import { generateApiKey } from '../utils/apiKey';
 
 // Use mock client in test environment to avoid database interactions
-const prisma = process.env.NODE_ENV === 'test' 
+const prismaClient = process.env.NODE_ENV === 'test' 
   ? require('../tests/setup').prismaTestClient 
   : new PrismaClient();
 
@@ -23,57 +25,29 @@ interface PrismaError extends Error {
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
-export const registerOrganization = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const registerOrganization = async (req: Request, res: Response) => {
   try {
     const { name } = req.body;
 
-    // Check if any organizations exist
-    const organizationCount = await prisma.organization.count();
-
-    // If this is the first organization, create it as an admin
-    // Otherwise, check if the authenticated user has admin privileges
-    if (organizationCount === 0) {
-      const organization = await prisma.organization.create({
-        data: {
-          name,
-          apiKey: generateApiKey(),
-          isAdmin: true, // First organization is admin
-        },
-      });
-
-      return res.status(201).json({
-        status: 'success',
-        data: {
-          organization: {
-            id: organization.id,
-            name: organization.name,
-            apiKey: organization.apiKey,
-            isAdmin: organization.isAdmin,
-          },
-        },
+    if (!name) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Organization name is required'
       });
     }
 
-    // For subsequent registrations, require admin privileges
-    if (!req.organization?.isAdmin) {
-      return next(new AppError('Only administrators can register new organizations', 403));
-    }
+    // Generate a unique API key for the organization
+    const apiKey = generateApiKey();
 
-    // Create new organization with generated API key
     const organization = await prisma.organization.create({
       data: {
         name,
-        apiKey: generateApiKey(),
-        isAdmin: false,
-      },
+        apiKey,
+        isAdmin: false // Organizations are never admin by default
+      }
     });
 
-    // Return success response with organization details
-    res.status(201).json({
+    return res.status(201).json({
       status: 'success',
       data: {
         organization: {
@@ -81,11 +55,16 @@ export const registerOrganization = async (
           name: organization.name,
           apiKey: organization.apiKey,
           isAdmin: organization.isAdmin,
-        },
-      },
+          createdAt: organization.createdAt
+        }
+      }
     });
   } catch (error) {
-    next(new AppError('Failed to create organization', 500));
+    console.error('Error registering organization:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Internal server error during organization registration'
+    });
   }
 };
 
@@ -113,7 +92,7 @@ export const getOrganization = async (
     }
 
     // Find organization by ID
-    const organization = await prisma.organization.findUnique({
+    const organization = await prismaClient.organization.findUnique({
       where: { id },
     });
 
@@ -159,7 +138,7 @@ export const updateOrganization = async (
     }
 
     // Update organization details
-    const organization = await prisma.organization.update({
+    const organization = await prismaClient.organization.update({
       where: { id },
       data: { name },
     });

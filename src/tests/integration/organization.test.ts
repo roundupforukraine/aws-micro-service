@@ -1,10 +1,14 @@
 import request from 'supertest';
-import { prismaTestClient } from '../setup';
+import { prismaTestClient, resetOrganizationCount } from '../setup';
 import app from '../../index';
 import { Organization } from '../setup';
 
 describe('Organization API', () => {
   let adminOrg: Organization;
+
+  beforeEach(() => {
+    resetOrganizationCount();
+  });
 
   beforeAll(async () => {
     await prismaTestClient.$connect();

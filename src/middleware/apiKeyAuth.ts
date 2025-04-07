@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { AppError } from './errorHandler';
 
 // Use mock client in test environment to avoid database interactions
-const prisma = process.env.NODE_ENV === 'test' 
+const prismaClient = process.env.NODE_ENV === 'test' 
   ? require('../tests/setup').prismaTestClient 
   : new PrismaClient();
 
@@ -40,7 +40,7 @@ export const apiKeyAuth = async (
     }
 
     // Find organization by API key
-    const organization = await prisma.organization.findUnique({
+    const organization = await prismaClient.organization.findUnique({
       where: { apiKey },
     });
 

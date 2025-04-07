@@ -1,0 +1,197 @@
+### Environment Variables
+@baseUrl = http://localhost:3000
+@adminApiKey = admin-key-1234567890abcdef
+@org1ApiKey = api-key-3b55d7705aad8e9a08acfaaea4853947
+@org1Id = 552c04bd-c08e-4cfb-acb8-3a68497ece1a
+@org2ApiKey = api-key-f066d2bfb2a903246636d8b6e9a72c16
+@org2Id = 6e437c9c-f350-41cc-b05a-b15bd1ef624c
+
+### Admin Operations ###
+
+### Admin: Register first organization
+POST {{baseUrl}}/api/organizations/register
+Content-Type: application/json
+x-api-key: {{adminApiKey}}
+
+{
+    "name": "Organization 1"
+}
+
+### Admin: Register second organization
+POST {{baseUrl}}/api/organizations/register
+Content-Type: application/json
+x-api-key: {{adminApiKey}}
+
+{
+    "name": "Organization 2"
+}
+
+### Admin: Get first organization details
+GET {{baseUrl}}/api/organizations/{{org1Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Get second organization details
+GET {{baseUrl}}/api/organizations/{{org2Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Update first organization details
+PUT {{baseUrl}}/api/organizations/{{org1Id}}
+Content-Type: application/json
+x-api-key: {{adminApiKey}}
+
+{
+    "name": "Updated Organization 1"
+}
+
+### Admin: Update second organization details
+PUT {{baseUrl}}/api/organizations/{{org2Id}}
+Content-Type: application/json
+x-api-key: {{adminApiKey}}
+
+{
+    "name": "Updated Organization 2"
+}
+
+### First Organization Operations ###
+
+### Organization 1: Get own organization details
+GET {{baseUrl}}/api/organizations/{{org1Id}}
+x-api-key: {{org1ApiKey}}
+
+### Organization 1: Update own organization details
+PUT {{baseUrl}}/api/organizations/{{org1Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "name": "Updated by Organization 1"
+}
+
+### Organization 1: Create first transaction
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "originalAmount": "10.50",
+    "metadata": {
+        "description": "First transaction for Org 1"
+    }
+}
+
+### Organization 1: Create second transaction
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "originalAmount": "25.75",
+    "metadata": {
+        "description": "Second transaction for Org 1"
+    }
+}
+
+### Organization 1: Create third transaction
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "originalAmount": "15.25",
+    "metadata": {
+        "description": "Third transaction for Org 1"
+    }
+}
+
+### Organization 1: List transactions
+GET {{baseUrl}}/api/transactions
+x-api-key: {{org1ApiKey}}
+
+### Organization 1: Get transaction report
+GET {{baseUrl}}/api/transactions/report
+x-api-key: {{org1ApiKey}}
+
+### Second Organization Operations ###
+
+### Organization 2: Get own organization details
+GET {{baseUrl}}/api/organizations/{{org2Id}}
+x-api-key: {{org2ApiKey}}
+
+### Organization 2: Update own organization details
+PUT {{baseUrl}}/api/organizations/{{org2Id}}
+Content-Type: application/json
+x-api-key: {{org2ApiKey}}
+
+{
+    "name": "Updated by Organization 2"
+}
+
+### Organization 2: Create first transaction
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
+x-api-key: {{org2ApiKey}}
+
+{
+    "originalAmount": "20.30",
+    "metadata": {
+        "description": "First transaction for Org 2"
+    }
+}
+
+### Organization 2: Create second transaction
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
+x-api-key: {{org2ApiKey}}
+
+{
+    "originalAmount": "35.80",
+    "metadata": {
+        "description": "Second transaction for Org 2"
+    }
+}
+
+### Organization 2: Create third transaction
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
+x-api-key: {{org2ApiKey}}
+
+{
+    "originalAmount": "12.45",
+    "metadata": {
+        "description": "Third transaction for Org 2"
+    }
+}
+
+### Organization 2: List transactions
+GET {{baseUrl}}/api/transactions
+x-api-key: {{org2ApiKey}}
+
+### Organization 2: Get transaction report
+GET {{baseUrl}}/api/transactions/report
+x-api-key: {{org2ApiKey}}
+
+### Admin Transaction Operations ###
+
+### Admin: List all transactions
+GET {{baseUrl}}/api/transactions
+x-api-key: {{adminApiKey}}
+
+### Admin: Get transaction report for all organizations
+GET {{baseUrl}}/api/transactions/report
+x-api-key: {{adminApiKey}}
+
+### Admin: List transactions for Organization 1
+GET {{baseUrl}}/api/transactions?organizationId={{org1Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: List transactions for Organization 2
+GET {{baseUrl}}/api/transactions?organizationId={{org2Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Get transaction report for Organization 1
+GET {{baseUrl}}/api/transactions/report?organizationId={{org1Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Get transaction report for Organization 2
+GET {{baseUrl}}/api/transactions/report?organizationId={{org2Id}}
+x-api-key: {{adminApiKey}} 

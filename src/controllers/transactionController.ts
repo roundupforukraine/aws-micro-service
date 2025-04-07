@@ -92,12 +92,16 @@ export const getTransaction = async (
     const { id } = req.params;
     const organizationId = req.organization.id;
 
+    // Build query filter
+    const where: any = { id };
+    // Only filter by organizationId for non-admin users
+    if (!req.organization.isAdmin) {
+      where.organizationId = organizationId;
+    }
+
     // Find transaction by ID and organization ID
     const transaction = await prisma.transaction.findFirst({
-      where: {
-        id,
-        organizationId,
-      },
+      where,
     });
 
     // Return 404 if transaction not found
@@ -141,7 +145,11 @@ export const listTransactions = async (
     const organizationId = req.organization.id;
 
     // Build query filter
-    const where: any = { organizationId };
+    const where: any = {};
+    // Only filter by organizationId for non-admin users
+    if (!req.organization.isAdmin) {
+      where.organizationId = organizationId;
+    }
     if (startDate && endDate) {
       where.createdAt = {
         gte: new Date(startDate as string),
@@ -203,7 +211,11 @@ export const getTransactionReport = async (
     const organizationId = req.organization.id;
 
     // Build query filter
-    const where: any = { organizationId };
+    const where: any = {};
+    // Only filter by organizationId for non-admin users
+    if (!req.organization.isAdmin) {
+      where.organizationId = organizationId;
+    }
     if (startDate && endDate) {
       where.createdAt = {
         gte: new Date(startDate as string),

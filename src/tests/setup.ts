@@ -1,26 +1,7 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { jest } from '@jest/globals';
-import dotenv from 'dotenv';
 
-// Load environment variables from .env.test file
-dotenv.config({ path: '.env.test' });
-
-// Create mock functions for organization methods
-const mockOrganizationCreate = jest.fn();
-const mockOrganizationFindUnique = jest.fn();
-const mockOrganizationUpdate = jest.fn();
-const mockOrganizationDeleteMany = jest.fn();
-
-// Create mock functions for transaction methods
-const mockTransactionCreate = jest.fn();
-const mockTransactionFindUnique = jest.fn();
-const mockTransactionFindFirst = jest.fn();
-const mockTransactionFindMany = jest.fn();
-const mockTransactionCount = jest.fn();
-const mockTransactionAggregate = jest.fn();
-const mockTransactionDeleteMany = jest.fn();
-
-// Define interfaces for our models
+// Define Organization interface for testing
 export interface Organization {
   id: string;
   name: string;
@@ -30,132 +11,138 @@ export interface Organization {
   updatedAt: Date;
 }
 
+// Define Transaction interface for testing
 export interface Transaction {
   id: string;
-  organizationId: string;
   originalAmount: Prisma.Decimal;
   roundedAmount: Prisma.Decimal;
   donationAmount: Prisma.Decimal;
-  metadata: Record<string, any>;
+  organizationId: string;
+  metadata: { description: string };
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Create mock organization data
-const mockOrganization: Organization = {
-  id: '123e4567-e89b-12d3-a456-426614174000',
+// Track number of organizations for count mock
+let organizationCount = 0;
+
+// Function to reset organization count
+export const resetOrganizationCount = () => {
+  organizationCount = 0;
+};
+
+// Mock Prisma client for testing
+const prismaTestClient = {
+  organization: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    update: jest.fn(),
+    count: jest.fn(),
+  },
+  transaction: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+    findMany: jest.fn(),
+    count: jest.fn(),
+  },
+  $connect: jest.fn(),
+  $disconnect: jest.fn(),
+} as unknown as PrismaClient & {
+  organization: {
+    create: jest.Mock;
+    findUnique: jest.Mock;
+    update: jest.Mock;
+    count: jest.Mock;
+  };
+  transaction: {
+    create: jest.Mock;
+    findUnique: jest.Mock;
+    findMany: jest.Mock;
+    count: jest.Mock;
+  };
+};
+
+// Set up default mock implementations
+prismaTestClient.organization.create.mockImplementation((data: any) => {
+  organizationCount++;
+  return Promise.resolve({
+    id: 'test-org-id',
+    name: data.data.name,
+    apiKey: data.data.apiKey,
+    isAdmin: data.data.isAdmin,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+});
+
+prismaTestClient.organization.findUnique.mockImplementation((data: any) => Promise.resolve({
+  id: 'test-org-id',
   name: 'Test Organization',
+  apiKey: data.where.apiKey,
+  isAdmin: data.where.apiKey === 'test-api-key-admin',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}));
+
+prismaTestClient.organization.update.mockImplementation((data: any) => Promise.resolve({
+  id: data.where.id,
+  name: data.data.name,
   apiKey: 'test-api-key',
   isAdmin: false,
   createdAt: new Date(),
   updatedAt: new Date(),
-};
+}));
 
-// Create mock transaction data
-const mockTransaction: Transaction = {
-  id: '123e4567-e89b-12d3-a456-426614174001',
-  organizationId: mockOrganization.id,
-  originalAmount: new Prisma.Decimal(10.99),
-  roundedAmount: new Prisma.Decimal(11.00),
-  donationAmount: new Prisma.Decimal(0.01),
-  metadata: { test: true },
+prismaTestClient.organization.count.mockImplementation(() => Promise.resolve(organizationCount));
+
+prismaTestClient.transaction.create.mockImplementation((data: any) => Promise.resolve({
+  id: 'test-transaction-id',
+  originalAmount: new Prisma.Decimal(data.data.originalAmount),
+  roundedAmount: new Prisma.Decimal(data.data.roundedAmount),
+  donationAmount: new Prisma.Decimal(data.data.donationAmount),
+  organizationId: data.data.organizationId,
+  metadata: data.data.metadata,
   createdAt: new Date(),
   updatedAt: new Date(),
-};
+}));
 
-// Create mock Prisma client
-const prismaTestClient = {
-  organization: {
-    create: mockOrganizationCreate,
-    findUnique: mockOrganizationFindUnique,
-    update: mockOrganizationUpdate,
-    deleteMany: mockOrganizationDeleteMany,
+prismaTestClient.transaction.findUnique.mockImplementation((data: any) => Promise.resolve({
+  id: 'test-transaction-id',
+  originalAmount: new Prisma.Decimal('15.75'),
+  roundedAmount: new Prisma.Decimal('16.00'),
+  donationAmount: new Prisma.Decimal('0.25'),
+  organizationId: data.where.id,
+  metadata: { description: 'Test transaction' },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+}));
+
+prismaTestClient.transaction.findMany.mockImplementation(() => Promise.resolve([
+  {
+    id: 'test-transaction-id',
+    originalAmount: new Prisma.Decimal('15.75'),
+    roundedAmount: new Prisma.Decimal('16.00'),
+    donationAmount: new Prisma.Decimal('0.25'),
+    organizationId: 'test-org-id',
+    metadata: { description: 'Test transaction' },
+    createdAt: new Date(),
+    updatedAt: new Date(),
   },
-  transaction: {
-    create: mockTransactionCreate,
-    findUnique: mockTransactionFindUnique,
-    findFirst: mockTransactionFindFirst,
-    findMany: mockTransactionFindMany,
-    count: mockTransactionCount,
-    aggregate: mockTransactionAggregate,
-    deleteMany: mockTransactionDeleteMany,
-  },
-  $connect: jest.fn(() => Promise.resolve()),
-  $disconnect: jest.fn(() => Promise.resolve()),
-} as unknown as jest.Mocked<PrismaClient>;
+]));
 
-// Set up default mock implementations
-mockOrganizationCreate.mockImplementation(async (args: any) => ({
-  ...mockOrganization,
-  ...args.data,
-}));
+prismaTestClient.transaction.count.mockImplementation(() => Promise.resolve(1));
 
-mockOrganizationFindUnique.mockImplementation(async (args: any) => {
-  if (args.where.apiKey === mockOrganization.apiKey) {
-    return mockOrganization;
-  }
-  return null;
-});
-
-mockOrganizationUpdate.mockImplementation(async (args: any) => ({
-  ...mockOrganization,
-  ...args.data,
-}));
-
-mockOrganizationDeleteMany.mockImplementation(async () => ({
-  count: 1,
-}));
-
-// Set up default mock implementations for transaction methods
-mockTransactionCreate.mockImplementation(async (args: any) => ({
-  ...mockTransaction,
-  ...args.data,
-}));
-
-mockTransactionFindUnique.mockImplementation(async (args: any) => {
-  if (args.where.id === mockTransaction.id) {
-    return mockTransaction;
-  }
-  return null;
-});
-
-mockTransactionFindFirst.mockImplementation(async () => mockTransaction);
-
-mockTransactionFindMany.mockImplementation(async () => [mockTransaction]);
-
-mockTransactionCount.mockImplementation(async () => 1);
-
-mockTransactionAggregate.mockImplementation(async () => ({
-  _sum: {
-    donationAmount: new Prisma.Decimal(0.01),
-  },
-}));
-
-mockTransactionDeleteMany.mockImplementation(async () => ({
-  count: 1,
-}));
-
-// Export setup and teardown functions
+// Test lifecycle management functions
 export const setup = async () => {
-  await prismaTestClient.transaction.deleteMany();
-  await prismaTestClient.organization.deleteMany();
+  // Clear all mocks before each test suite
+  jest.clearAllMocks();
+  await prismaTestClient.$connect();
 };
 
 export const teardown = async () => {
+  // Clean up after all tests
+  jest.resetAllMocks();
   await prismaTestClient.$disconnect();
 };
 
-// Export the mock client and mock data for use in tests
-export { prismaTestClient, mockOrganization, mockTransaction };
-
-// Global test setup
-beforeAll(() => {
-  // Clear all mocks before each test suite
-  jest.clearAllMocks();
-});
-
-// Global test teardown
-afterAll(() => {
-  // Clean up after all tests
-  jest.resetAllMocks();
-}); 
+export { prismaTestClient }; 
