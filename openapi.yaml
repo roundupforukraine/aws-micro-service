@@ -1,0 +1,582 @@
+openapi: 3.0.3
+info:
+  title: Round-Up Donation API
+  description: |
+    API for managing organizations and transactions with round-up donations.
+    
+    This API allows organizations to register, create transactions, and track donations.
+    Each transaction has an original amount, a rounded-up amount, and a donation amount.
+    
+    Authentication is performed using API keys in the `x-api-key` header.
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /api
+    description: API base path
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: API key for authentication
+  
+  schemas:
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          example: fail
+        message:
+          type: string
+          example: Invalid API key
+    
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          example: Charity Organization
+        apiKey:
+          type: string
+          example: abc123def456
+        isAdmin:
+          type: boolean
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          example: 2023-01-01T12:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2023-01-01T12:00:00Z
+    
+    Transaction:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        organizationId:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174000
+        originalAmount:
+          type: string
+          format: decimal
+          example: "10.50"
+        roundedAmount:
+          type: string
+          format: decimal
+          example: "11.00"
+        donationAmount:
+          type: string
+          format: decimal
+          example: "0.50"
+        metadata:
+          type: object
+          example: { "description": "Coffee purchase" }
+        createdAt:
+          type: string
+          format: date-time
+          example: 2023-01-01T12:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          example: 2023-01-01T12:00:00Z
+    
+    TransactionReport:
+      type: object
+      properties:
+        totalTransactions:
+          type: integer
+          example: 100
+        totalDonations:
+          type: string
+          format: decimal
+          example: "50.25"
+        averageDonation:
+          type: string
+          format: decimal
+          example: "0.50"
+    
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+        total:
+          type: integer
+          example: 100
+        pages:
+          type: integer
+          example: 10
+    
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            organization:
+              $ref: '#/components/schemas/Organization'
+            transaction:
+              $ref: '#/components/schemas/Transaction'
+            transactions:
+              type: array
+              items:
+                $ref: '#/components/schemas/Transaction'
+            pagination:
+              $ref: '#/components/schemas/Pagination'
+            report:
+              $ref: '#/components/schemas/TransactionReport'
+
+paths:
+  /organizations/register:
+    post:
+      summary: Register a new organization
+      description: Creates a new organization with a generated API key. Requires admin access.
+      operationId: registerOrganization
+      tags:
+        - Organizations
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: Charity Organization
+      responses:
+        '201':
+          description: Organization created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          organization:
+                            $ref: '#/components/schemas/Organization'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Not an admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /organizations/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Organization ID
+    get:
+      summary: Get organization details
+      description: Retrieves details of an organization by ID. Requires admin access or organization's own API key.
+      operationId: getOrganization
+      tags:
+        - Organizations
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Organization details retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          organization:
+                            $ref: '#/components/schemas/Organization'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Not authorized to access this organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update organization details
+      description: Updates an organization's details. Requires admin access or organization's own API key.
+      operationId: updateOrganization
+      tags:
+        - Organizations
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Updated Organization Name
+      responses:
+        '200':
+          description: Organization updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          organization:
+                            $ref: '#/components/schemas/Organization'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Not authorized to update this organization
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Organization not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /transactions:
+    post:
+      summary: Create a new transaction
+      description: Creates a new transaction and calculates the round-up amount for donation.
+      operationId: createTransaction
+      tags:
+        - Transactions
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - originalAmount
+              properties:
+                originalAmount:
+                  type: number
+                  format: float
+                  example: 10.50
+                metadata:
+                  type: object
+                  example: { "description": "Coffee purchase" }
+      responses:
+        '201':
+          description: Transaction created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transaction:
+                            $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List transactions
+      description: Retrieves a paginated list of transactions for the authenticated organization.
+      operationId: listTransactions
+      tags:
+        - Transactions
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+          description: Page number
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Number of items per page
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter transactions from this date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter transactions until this date
+      responses:
+        '200':
+          description: Transactions retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transactions:
+                            type: array
+                            items:
+                              $ref: '#/components/schemas/Transaction'
+                          pagination:
+                            $ref: '#/components/schemas/Pagination'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /transactions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+        description: Transaction ID
+    get:
+      summary: Get transaction details
+      description: Retrieves details of a transaction by ID. Organizations can only access their own transactions.
+      operationId: getTransaction
+      tags:
+        - Transactions
+      security:
+        - ApiKeyAuth: []
+      responses:
+        '200':
+          description: Transaction details retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transaction:
+                            $ref: '#/components/schemas/Transaction'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Not authorized to access this transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: Update transaction metadata
+      description: Updates a transaction's metadata. Organizations can only update their own transactions.
+      operationId: updateTransaction
+      tags:
+        - Transactions
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - metadata
+              properties:
+                metadata:
+                  type: object
+                  example: { "description": "Updated transaction description" }
+      responses:
+        '200':
+          description: Transaction updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          transaction:
+                            $ref: '#/components/schemas/Transaction'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Not authorized to update this transaction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  
+  /transactions/report:
+    get:
+      summary: Get transaction report
+      description: Generates a summary report of transactions for the authenticated organization.
+      operationId: getTransactionReport
+      tags:
+        - Transactions
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: startDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter transactions from this date
+        - name: endDate
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Filter transactions until this date
+      responses:
+        '200':
+          description: Transaction report retrieved successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/SuccessResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          report:
+                            $ref: '#/components/schemas/TransactionReport'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error' 

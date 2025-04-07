@@ -12,6 +12,54 @@ A Node.js API service that helps organizations manage round-up donations for Ukr
 - AWS deployment ready
 - Comprehensive test coverage (unit and integration tests)
 - API testing with HTTP files
+- OpenAPI documentation with Swagger UI
+- Client library generation for multiple languages
+
+## API Documentation and Client Libraries
+
+The API is documented using the OpenAPI 3.0.3 specification in the `openapi.yaml` file. This specification can be used to:
+
+1. Generate interactive API documentation
+2. Create client libraries for various programming languages
+3. Test the API directly from the documentation
+
+### Viewing the API Documentation
+
+You can view the API documentation by running:
+
+```bash
+npm run docs
+```
+
+This will start a server at http://localhost:3001/api-docs that serves the Swagger UI for the API documentation.
+
+### Generating Client Libraries
+
+You can generate client libraries for various programming languages using:
+
+```bash
+npm run generate-client <language>
+```
+
+Available languages include:
+- `typescript-fetch`: TypeScript with Fetch API
+- `typescript-axios`: TypeScript with Axios
+- `javascript-fetch`: JavaScript with Fetch API
+- `javascript-axios`: JavaScript with Axios
+- `python`: Python
+- `java`: Java
+- `csharp`: C#
+- `php`: PHP
+- `go`: Go
+- `ruby`: Ruby
+- `swift`: Swift
+- `kotlin`: Kotlin
+
+For more information, see the [API Documentation](API_DOCUMENTATION.md) file.
+
+### Example Client Usage
+
+See the [examples](examples/) directory for examples of how to use the generated client libraries.
 
 ## Project Structure
 
@@ -28,7 +76,10 @@ src/
 └── utils/              # Utility functions
 
 scripts/                # Shell scripts for testing and deployment
+examples/               # Examples of using the generated client libraries
 api-tests.http         # API testing file for VS Code REST Client
+openapi.yaml           # OpenAPI specification for API documentation
+API_DOCUMENTATION.md   # Detailed API documentation
 ```
 
 ## Prerequisites
@@ -72,6 +123,11 @@ api-tests.http         # API testing file for VS Code REST Client
 6. Start the development server:
    ```bash
    npm run dev
+   ```
+
+7. Start the API documentation server:
+   ```bash
+   npm run docs
    ```
 
 ## Authentication & Authorization

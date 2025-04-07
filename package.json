@@ -12,7 +12,9 @@
     "test:integration": "jest src/tests/integration",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "docs": "ts-node src/docs-server.ts",
+    "generate-client": "./scripts/generate-client.sh"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",
@@ -22,7 +24,9 @@
     "express": "^4.18.2",
     "express-validator": "^7.0.1",
     "helmet": "^7.1.0",
-    "winston": "^3.11.0"
+    "swagger-ui-express": "^5.0.0",
+    "winston": "^3.11.0",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
@@ -30,6 +34,8 @@
     "@types/jest": "^29.5.14",
     "@types/node": "^20.11.19",
     "@types/supertest": "^6.0.3",
+    "@types/swagger-ui-express": "^4.1.6",
+    "@types/yamljs": "^0.2.34",
     "@typescript-eslint/eslint-plugin": "^7.0.1",
     "@typescript-eslint/parser": "^7.0.1",
     "eslint": "^8.56.0",
