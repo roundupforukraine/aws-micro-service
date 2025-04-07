@@ -35,6 +35,10 @@ call_api() {
       org_api_key=$(echo $response | grep -o '"apiKey":"[^"]*"' | cut -d'"' -f4)
       echo "Organization ID: $org_id"
       echo "Organization API Key: $org_api_key"
+    elif [[ $endpoint == *"/transactions"* && $method == "POST" ]]; then
+      # Extract transaction ID
+      transaction_id=$(echo $response | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+      echo "Transaction ID: $transaction_id"
     fi
   fi
 }
@@ -60,6 +64,10 @@ echo "Step 2: Create 25 transactions for Organization 1"
 for i in {1..25}; do
   amount=$(echo "scale=2; $RANDOM/1000 + 10" | bc)
   call_api "POST" "/api/transactions" "$ORG1_API_KEY" "{\"originalAmount\": \"$amount\", \"organizationId\": \"$ORG1_ID\", \"metadata\": {\"description\": \"Transaction $i for Org 1\"}}"
+  if [ $i -eq 1 ]; then
+    TRANSACTION1_ID=$transaction_id
+    echo "TRANSACTION1_ID: $TRANSACTION1_ID"
+  fi
   sleep 0.1
 done
 
@@ -68,39 +76,59 @@ echo "Step 3: Create 25 transactions for Organization 2"
 for i in {1..25}; do
   amount=$(echo "scale=2; $RANDOM/1000 + 10" | bc)
   call_api "POST" "/api/transactions" "$ORG2_API_KEY" "{\"originalAmount\": \"$amount\", \"organizationId\": \"$ORG2_ID\", \"metadata\": {\"description\": \"Transaction $i for Org 2\"}}"
+  if [ $i -eq 1 ]; then
+    TRANSACTION2_ID=$transaction_id
+    echo "TRANSACTION2_ID: $TRANSACTION2_ID"
+  fi
   sleep 0.1
 done
 
-# Step 4: Get all transactions for Organization 1
-echo "Step 4: Get all transactions for Organization 1"
+# Step 4: Update Organization 1
+echo "Step 4: Update Organization 1"
+call_api "PUT" "/api/organizations/$ORG1_ID" "$ORG1_API_KEY" "{\"name\": \"Updated Organization 1\", \"description\": \"This organization has been updated\"}"
+
+# Step 5: Update Organization 2
+echo "Step 5: Update Organization 2"
+call_api "PUT" "/api/organizations/$ORG2_ID" "$ORG2_API_KEY" "{\"name\": \"Updated Organization 2\", \"description\": \"This organization has been updated\"}"
+
+# Step 6: Update Transaction 1 for Organization 1
+echo "Step 6: Update Transaction 1 for Organization 1"
+call_api "PUT" "/api/transactions/$TRANSACTION1_ID" "$ORG1_API_KEY" "{\"metadata\": {\"description\": \"Updated Transaction 1 for Org 1\", \"updated\": true}}"
+
+# Step 7: Update Transaction 1 for Organization 2
+echo "Step 7: Update Transaction 1 for Organization 2"
+call_api "PUT" "/api/transactions/$TRANSACTION2_ID" "$ORG2_API_KEY" "{\"metadata\": {\"description\": \"Updated Transaction 1 for Org 2\", \"updated\": true}}"
+
+# Step 8: Get all transactions for Organization 1
+echo "Step 8: Get all transactions for Organization 1"
 call_api "GET" "/api/transactions?organizationId=$ORG1_ID" "$ORG1_API_KEY"
 
-# Step 5: Get all transactions for Organization 2
-echo "Step 5: Get all transactions for Organization 2"
+# Step 9: Get all transactions for Organization 2
+echo "Step 9: Get all transactions for Organization 2"
 call_api "GET" "/api/transactions?organizationId=$ORG2_ID" "$ORG2_API_KEY"
 
-# Step 6: Get transaction report for Organization 1
-echo "Step 6: Get transaction report for Organization 1"
+# Step 10: Get transaction report for Organization 1
+echo "Step 10: Get transaction report for Organization 1"
 call_api "GET" "/api/transactions/report?organizationId=$ORG1_ID" "$ORG1_API_KEY"
 
-# Step 7: Get transaction report for Organization 2
-echo "Step 7: Get transaction report for Organization 2"
+# Step 11: Get transaction report for Organization 2
+echo "Step 11: Get transaction report for Organization 2"
 call_api "GET" "/api/transactions/report?organizationId=$ORG2_ID" "$ORG2_API_KEY"
 
-# Step 8: Admin gets all transactions for Organization 1
-echo "Step 8: Admin gets all transactions for Organization 1"
+# Step 12: Admin gets all transactions for Organization 1
+echo "Step 12: Admin gets all transactions for Organization 1"
 call_api "GET" "/api/transactions?organizationId=$ORG1_ID" "$ADMIN_API_KEY"
 
-# Step 9: Admin gets all transactions for Organization 2
-echo "Step 9: Admin gets all transactions for Organization 2"
+# Step 13: Admin gets all transactions for Organization 2
+echo "Step 13: Admin gets all transactions for Organization 2"
 call_api "GET" "/api/transactions?organizationId=$ORG2_ID" "$ADMIN_API_KEY"
 
-# Step 10: Admin gets transaction report for Organization 1
-echo "Step 10: Admin gets transaction report for Organization 1"
+# Step 14: Admin gets transaction report for Organization 1
+echo "Step 14: Admin gets transaction report for Organization 1"
 call_api "GET" "/api/transactions/report?organizationId=$ORG1_ID" "$ADMIN_API_KEY"
 
-# Step 11: Admin gets transaction report for Organization 2
-echo "Step 11: Admin gets transaction report for Organization 2"
+# Step 15: Admin gets transaction report for Organization 2
+echo "Step 15: Admin gets transaction report for Organization 2"
 call_api "GET" "/api/transactions/report?organizationId=$ORG2_ID" "$ADMIN_API_KEY"
 
 echo "API sequence completed!" 

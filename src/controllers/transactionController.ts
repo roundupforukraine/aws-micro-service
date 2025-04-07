@@ -255,4 +255,62 @@ export const getTransactionReport = async (
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * Update a transaction's metadata
+ * 
+ * This endpoint allows organizations to update the metadata of their transactions.
+ * Only the metadata field can be updated to maintain data integrity of financial records.
+ * 
+ * @param req - Express request object containing transaction ID in params and updated metadata in body
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
+export const updateTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (!req.organization) {
+      throw new AppError('Organization not found', 404);
+    }
+    
+    const { id } = req.params;
+    const { metadata } = req.body;
+    const organizationId = req.organization.id;
+
+    // Build query filter
+    const where: any = { id };
+    // Only filter by organizationId for non-admin users
+    if (!req.organization.isAdmin) {
+      where.organizationId = organizationId;
+    }
+
+    // Find transaction first to verify it exists and belongs to the organization
+    const existingTransaction = await prismaClient.transaction.findFirst({
+      where,
+    });
+
+    if (!existingTransaction) {
+      throw new AppError('Transaction not found', 404);
+    }
+
+    // Update transaction metadata
+    const transaction = await prismaClient.transaction.update({
+      where: { id },
+      data: { metadata },
+    });
+
+    // Return success response with updated transaction
+    res.status(200).json({
+      status: 'success',
+      data: {
+        transaction,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
 }; 
