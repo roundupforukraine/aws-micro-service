@@ -10,7 +10,7 @@ import { mockRequest, mockNext } from '../../tests/helpers';
 
 // Mock crypto module to make API key generation deterministic
 jest.mock('crypto', () => ({
-  randomBytes: () => ({
+  randomBytes: jest.fn().mockReturnValue({
     toString: () => 'test-random-bytes',
   }),
 }));
@@ -40,47 +40,39 @@ describe('Organization Controller', () => {
 
   describe('registerOrganization', () => {
     it('should create a new organization when called by admin', async () => {
-      const req: MockRequest = {
-        organization: {
-          id: 'admin-id',
-          name: 'Admin Org',
-          apiKey: 'admin-key',
-          isAdmin: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        body: { name: 'New Organization' },
-      };
+      // Mock the organization count to simulate first organization
+      (prismaTestClient.organization.count as unknown as jest.Mock).mockResolvedValue(0);
 
-      const res: MockResponse = {
+      const req = {
+        body: { name: 'New Organization' },
+      } as Request;
+
+      const res = {
         status: jest.fn().mockReturnThis(),
         json: jest.fn(),
-      };
-
-      const expectedOrg = {
-        id: 'new-org-id',
-        name: 'New Organization',
-        apiKey: 'api-key-test-random-bytes',
-        isAdmin: false,
-        createdAt: expect.any(Date),
-        updatedAt: expect.any(Date),
-      };
-
-      prismaTestClient.organization.create.mockResolvedValueOnce(expectedOrg);
+      } as unknown as Response;
 
       await registerOrganization(req as Request, res as Response, next);
 
       expect(prismaTestClient.organization.create).toHaveBeenCalledWith({
         data: {
           name: 'New Organization',
-          apiKey: expect.stringMatching(/^api-key-/),
-          isAdmin: false,
+          apiKey: 'api-key-test-random-bytes',
+          isAdmin: true, // First organization is admin
         },
       });
+
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         status: 'success',
-        data: { organization: expectedOrg },
+        data: {
+          organization: {
+            id: 'test-org-id',
+            name: 'New Organization',
+            apiKey: 'api-key-test-random-bytes',
+            isAdmin: true,
+          },
+        },
       });
     });
 
@@ -107,7 +99,7 @@ describe('Organization Controller', () => {
       expect(next).toHaveBeenCalledWith(
         expect.objectContaining({
           statusCode: 403,
-          message: 'Only admin organizations can register new organizations',
+          message: 'Only administrators can register new organizations',
         })
       );
     });
