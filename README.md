@@ -9,6 +9,20 @@ A Node.js API service that helps organizations manage round-up donations for Ukr
 - Round-up calculation for donations
 - Secure API key authentication
 - AWS deployment ready
+- Comprehensive test coverage (unit and integration tests)
+
+## Project Structure
+
+```
+src/
+├── controllers/         # Business logic for organizations and transactions
+├── middleware/          # Authentication, error handling, and request validation
+├── routes/              # API route definitions
+├── tests/               # Test setup and integration tests
+│   ├── integration/     # API integration tests
+│   └── setup.ts         # Test environment setup
+└── types/               # TypeScript type definitions
+```
 
 ## Prerequisites
 
@@ -35,7 +49,12 @@ A Node.js API service that helps organizations manage round-up donations for Ukr
    cp .env.example .env
    ```
 
-4. Update the `.env` file with your local configuration
+4. Update the `.env` file with your local configuration:
+   ```
+   DATABASE_URL="postgresql://username:password@localhost:5432/ukraine_roundup"
+   PORT=3000
+   NODE_ENV=development
+   ```
 
 5. Set up the database:
    ```bash
@@ -106,17 +125,38 @@ There are two types of organizations in the system:
 #### Transactions
 
 - `POST /api/transactions` - Create a new transaction
+  - Request header: `x-api-key: <api-key>`
+  - Request body: 
+    ```json
+    {
+      "originalAmount": 9.99,
+      "metadata": {
+        "description": "Coffee purchase",
+        "location": "London"
+      }
+    }
+    ```
+  - Response: Created transaction with calculated round-up amount
+
 - `GET /api/transactions` - List transactions
+  - Request header: `x-api-key: <api-key>`
+  - Query parameters:
+    - `page` (optional): Page number (default: 1)
+    - `limit` (optional): Items per page (default: 10, max: 100)
+    - `startDate` (optional): Filter by start date (ISO format)
+    - `endDate` (optional): Filter by end date (ISO format)
+  - Response: Paginated list of transactions
+
 - `GET /api/transactions/:id` - Get transaction details
-- `GET /api/transactions/reports` - Get transaction reports
+  - Request header: `x-api-key: <api-key>`
+  - Response: Transaction details
 
-## Security
-
-- All API keys and secrets are stored in AWS Secrets Manager
-- Environment variables are managed through AWS Parameter Store
-- No sensitive data is stored in the codebase
-- All API endpoints are secured with API key authentication
-- Role-based access control through organization admin status
+- `GET /api/transactions/reports/summary` - Get transaction reports
+  - Request header: `x-api-key: <api-key>`
+  - Query parameters:
+    - `startDate` (optional): Filter by start date (ISO format)
+    - `endDate` (optional): Filter by end date (ISO format)
+  - Response: Summary statistics including total transactions and donations
 
 ## Testing
 
@@ -132,6 +172,23 @@ npm run test:watch
 # Run tests with coverage
 npm run test:coverage
 ```
+
+### Test Environment
+
+- Tests use a mock Prisma client to avoid database interactions
+- API key authentication is simulated with test API keys
+- Integration tests verify API endpoints and business logic
+- Unit tests cover controller functions and middleware
+
+## Security
+
+- All API keys and secrets are stored in AWS Secrets Manager
+- Environment variables are managed through AWS Parameter Store
+- No sensitive data is stored in the codebase
+- All API endpoints are secured with API key authentication
+- Role-based access control through organization admin status
+- Input validation using express-validator
+- Error handling with custom AppError class
 
 ## Contributing
 

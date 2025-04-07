@@ -7,28 +7,35 @@ import transactionRouter from './routes/transactionRoutes';
 import { errorHandler } from './middleware/errorHandler';
 import { apiKeyAuth } from './middleware/apiKeyAuth';
 
-// Load environment variables
+// Load environment variables from .env file
 dotenv.config();
 
+// Create Express application
 const app = express();
 
-// Middleware
-app.use(helmet());
-app.use(cors());
+// Apply security middleware
+app.use(helmet()); // Adds various HTTP headers for security
+app.use(cors()); // Enables Cross-Origin Resource Sharing
+
+// Parse JSON request bodies
 app.use(express.json());
+
+// Define API routes
+app.use('/api/organizations', organizationRouter);
+app.use('/api/transactions', transactionRouter);
 
 // API Key authentication for all routes except organization registration
 app.use('/api/organizations/register', organizationRouter);
 app.use('/api', apiKeyAuth);
-app.use('/api/organizations', organizationRouter);
-app.use('/api/transactions', transactionRouter);
 
-// Error handling
+// Apply error handling middleware
 app.use(errorHandler);
 
-// Only start the server if this file is run directly
+// Get port from environment variables or use default
+const port = process.env.PORT || 3000;
+
+// Start server if this file is run directly
 if (require.main === module) {
-  const port = process.env.PORT || 3000;
   app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
   });

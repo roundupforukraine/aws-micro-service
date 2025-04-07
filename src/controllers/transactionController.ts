@@ -2,14 +2,33 @@ import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 
+// Initialize Prisma client for database operations
 const prisma = new PrismaClient();
 
-// Helper function to calculate round-up amount
+/**
+ * Calculate the round-up amount for a transaction
+ * 
+ * This function takes the original amount and calculates how much needs to be
+ * rounded up to the next pound, which becomes the donation amount.
+ * 
+ * @param amount - The original transaction amount
+ * @returns The round-up amount (difference to next pound)
+ */
 const calculateRoundUp = (amount: number): number => {
   const nextPound = Math.ceil(amount);
   return Number((nextPound - amount).toFixed(2));
 };
 
+/**
+ * Create a new transaction
+ * 
+ * This endpoint creates a new transaction and calculates the round-up amount
+ * for donation. The transaction is associated with the authenticated organization.
+ * 
+ * @param req - Express request object containing transaction details in body
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
 export const createTransaction = async (
   req: Request,
   res: Response,
@@ -23,9 +42,11 @@ export const createTransaction = async (
     const { originalAmount, metadata } = req.body;
     const organizationId = req.organization.id;
 
+    // Calculate rounded amount and donation amount
     const roundedAmount = Math.ceil(originalAmount);
     const donationAmount = calculateRoundUp(originalAmount);
 
+    // Create transaction in database
     const transaction = await prisma.transaction.create({
       data: {
         organizationId,
@@ -36,6 +57,7 @@ export const createTransaction = async (
       },
     });
 
+    // Return success response with created transaction
     res.status(201).json({
       status: 'success',
       data: {
@@ -47,6 +69,16 @@ export const createTransaction = async (
   }
 };
 
+/**
+ * Get transaction details
+ * 
+ * This endpoint retrieves a specific transaction by ID.
+ * Organizations can only access their own transactions.
+ * 
+ * @param req - Express request object containing transaction ID in params
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
 export const getTransaction = async (
   req: Request,
   res: Response,
@@ -60,6 +92,7 @@ export const getTransaction = async (
     const { id } = req.params;
     const organizationId = req.organization.id;
 
+    // Find transaction by ID and organization ID
     const transaction = await prisma.transaction.findFirst({
       where: {
         id,
@@ -67,10 +100,12 @@ export const getTransaction = async (
       },
     });
 
+    // Return 404 if transaction not found
     if (!transaction) {
       throw new AppError('Transaction not found', 404);
     }
 
+    // Return success response with transaction details
     res.status(200).json({
       status: 'success',
       data: {
@@ -82,6 +117,16 @@ export const getTransaction = async (
   }
 };
 
+/**
+ * List transactions with pagination and date filtering
+ * 
+ * This endpoint retrieves a paginated list of transactions for the authenticated
+ * organization. Results can be filtered by date range.
+ * 
+ * @param req - Express request object containing pagination and filter parameters
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
 export const listTransactions = async (
   req: Request,
   res: Response,
@@ -95,6 +140,7 @@ export const listTransactions = async (
     const { page = 1, limit = 10, startDate, endDate } = req.query;
     const organizationId = req.organization.id;
 
+    // Build query filter
     const where: any = { organizationId };
     if (startDate && endDate) {
       where.createdAt = {
@@ -103,6 +149,7 @@ export const listTransactions = async (
       };
     }
 
+    // Fetch transactions and total count in parallel
     const [transactions, total] = await Promise.all([
       prisma.transaction.findMany({
         where,
@@ -113,6 +160,7 @@ export const listTransactions = async (
       prisma.transaction.count({ where }),
     ]);
 
+    // Return success response with paginated transactions
     res.status(200).json({
       status: 'success',
       data: {
@@ -130,6 +178,17 @@ export const listTransactions = async (
   }
 };
 
+/**
+ * Get transaction report summary
+ * 
+ * This endpoint generates a summary report of transactions for the authenticated
+ * organization. The report includes total transactions, total donations, and
+ * average donation amount. Results can be filtered by date range.
+ * 
+ * @param req - Express request object containing date filter parameters
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
 export const getTransactionReport = async (
   req: Request,
   res: Response,
@@ -143,6 +202,7 @@ export const getTransactionReport = async (
     const { startDate, endDate } = req.query;
     const organizationId = req.organization.id;
 
+    // Build query filter
     const where: any = { organizationId };
     if (startDate && endDate) {
       where.createdAt = {
@@ -151,6 +211,7 @@ export const getTransactionReport = async (
       };
     }
 
+    // Fetch transaction count and donation sum in parallel
     const [totalTransactions, totalDonations] = await Promise.all([
       prisma.transaction.count({ where }),
       prisma.transaction.aggregate({
@@ -161,11 +222,13 @@ export const getTransactionReport = async (
       }),
     ]);
 
+    // Calculate average donation amount
     const donationSum = totalDonations._sum.donationAmount || 0;
     const averageDonation = totalTransactions > 0
       ? Number(donationSum) / totalTransactions
       : 0;
 
+    // Return success response with report data
     res.status(200).json({
       status: 'success',
       data: {
