@@ -1,11 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from './errorHandler';
+import { prisma } from '../config/database';
 
 // Use mock client in test environment to avoid database interactions
 const prismaClient = process.env.NODE_ENV === 'test' 
   ? require('../tests/setup').prismaTestClient 
-  : new PrismaClient();
+  : prisma;
 
 /**
  * Admin Authentication Middleware

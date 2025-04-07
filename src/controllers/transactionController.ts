@@ -1,9 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
+import { prisma } from '../config/database';
 
-// Initialize Prisma client for database operations
-const prisma = new PrismaClient();
+// Use mock client in test environment to avoid database interactions
+const prismaClient = process.env.NODE_ENV === 'test' 
+  ? require('../tests/setup').prismaTestClient 
+  : prisma;
 
 /**
  * Calculate the round-up amount for a transaction
@@ -47,7 +50,7 @@ export const createTransaction = async (
     const donationAmount = calculateRoundUp(originalAmount);
 
     // Create transaction in database
-    const transaction = await prisma.transaction.create({
+    const transaction = await prismaClient.transaction.create({
       data: {
         organizationId,
         originalAmount,
@@ -100,7 +103,7 @@ export const getTransaction = async (
     }
 
     // Find transaction by ID and organization ID
-    const transaction = await prisma.transaction.findFirst({
+    const transaction = await prismaClient.transaction.findFirst({
       where,
     });
 
@@ -159,13 +162,13 @@ export const listTransactions = async (
 
     // Fetch transactions and total count in parallel
     const [transactions, total] = await Promise.all([
-      prisma.transaction.findMany({
+      prismaClient.transaction.findMany({
         where,
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
         orderBy: { createdAt: 'desc' },
       }),
-      prisma.transaction.count({ where }),
+      prismaClient.transaction.count({ where }),
     ]);
 
     // Return success response with paginated transactions
@@ -225,8 +228,8 @@ export const getTransactionReport = async (
 
     // Fetch transaction count and donation sum in parallel
     const [totalTransactions, totalDonations] = await Promise.all([
-      prisma.transaction.count({ where }),
-      prisma.transaction.aggregate({
+      prismaClient.transaction.count({ where }),
+      prismaClient.transaction.aggregate({
         where,
         _sum: {
           donationAmount: true,

@@ -1,14 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
-import crypto from 'crypto';
 import { prisma } from '../config/database';
 import { generateApiKey } from '../utils/apiKey';
 
 // Use mock client in test environment to avoid database interactions
 const prismaClient = process.env.NODE_ENV === 'test' 
   ? require('../tests/setup').prismaTestClient 
-  : new PrismaClient();
+  : prisma;
 
 // Extend Error type to include Prisma-specific error codes
 interface PrismaError extends Error {
@@ -50,121 +49,131 @@ export const registerOrganization = async (req: Request, res: Response) => {
     return res.status(201).json({
       status: 'success',
       data: {
-        organization: {
-          id: organization.id,
-          name: organization.name,
-          apiKey: organization.apiKey,
-          isAdmin: organization.isAdmin,
-          createdAt: organization.createdAt
-        }
+        organization
       }
     });
   } catch (error) {
-    console.error('Error registering organization:', error);
+    // Handle Prisma unique constraint violations
+    const prismaError = error as PrismaError;
+    if (prismaError.code === 'P2002') {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'An organization with this name already exists'
+      });
+    }
+
     return res.status(500).json({
       status: 'error',
-      message: 'Internal server error during organization registration'
+      message: 'Failed to create organization'
     });
   }
 };
 
 /**
- * Get organization details
+ * Get organization details by ID
  * 
- * This endpoint allows organizations to view their own details
- * or admin organizations to view any organization's details.
+ * This endpoint retrieves an organization by its ID.
+ * It can be accessed by the organization itself or by an admin organization.
  * 
  * @param req - Express request object containing organization ID in params
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
-export const getOrganization = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const getOrganization = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
-    // Only allow access to own organization unless admin
-    if (!req.organization?.isAdmin && req.organization?.id !== id) {
-      return next(new AppError('Not authorized to access this organization', 403));
+    // Check if the requesting organization is the same as the requested organization
+    // or if the requesting organization is an admin
+    if (req.organization.id !== id && !req.organization.isAdmin) {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'You do not have permission to access this organization'
+      });
     }
 
-    // Find organization by ID
-    const organization = await prismaClient.organization.findUnique({
-      where: { id },
+    const organization = await prisma.organization.findUnique({
+      where: { id }
     });
 
-    // Return 404 if organization not found
     if (!organization) {
-      return next(new AppError('Organization not found', 404));
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Organization not found'
+      });
     }
 
-    // Return success response with organization details
-    res.status(200).json({
+    return res.status(200).json({
       status: 'success',
       data: {
-        organization,
-      },
+        organization
+      }
     });
   } catch (error) {
-    next(new AppError('Failed to get organization', 500));
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to retrieve organization'
+    });
   }
 };
 
 /**
  * Update organization details
  * 
- * This endpoint allows organizations to update their own details
- * or admin organizations to update any organization's details.
+ * This endpoint updates an organization's details.
+ * It can be accessed by the organization itself or by an admin organization.
  * 
- * @param req - Express request object containing organization ID in params and updated name in body
+ * @param req - Express request object containing organization ID in params and updates in body
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
-export const updateOrganization = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => {
+export const updateOrganization = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
 
-    // Only allow access to own organization unless admin
-    if (!req.organization?.isAdmin && req.organization?.id !== id) {
-      return next(new AppError('Not authorized to update this organization', 403));
+    // Check if the requesting organization is the same as the requested organization
+    // or if the requesting organization is an admin
+    if (req.organization.id !== id && !req.organization.isAdmin) {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'You do not have permission to update this organization'
+      });
     }
 
-    // Update organization details
-    const organization = await prismaClient.organization.update({
+    // Prevent changing isAdmin status
+    const organization = await prisma.organization.update({
       where: { id },
-      data: { name },
+      data: { name }
     });
 
-    // Return success response with updated organization details
-    res.status(200).json({
+    return res.status(200).json({
       status: 'success',
       data: {
-        organization,
-      },
+        organization
+      }
     });
   } catch (error) {
+    // Handle Prisma unique constraint violations
     const prismaError = error as PrismaError;
-    // Handle case where organization doesn't exist
-    if (prismaError.code === 'P2025') {
-      return next(new AppError('Organization not found', 404));
+    if (prismaError.code === 'P2002') {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'An organization with this name already exists'
+      });
     }
-    next(new AppError('Failed to update organization', 500));
-  }
-};
 
-/**
- * Generate a unique API key for a new organization
- * 
- * @returns A unique API key string
- */
-function generateApiKey(): string {
-  return 'api-key-' + crypto.randomBytes(16).toString('hex');
-} 
+    // Handle Prisma record not found
+    if (prismaError.code === 'P2025') {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Organization not found'
+      });
+    }
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Failed to update organization'
+    });
+  }
+}; 
