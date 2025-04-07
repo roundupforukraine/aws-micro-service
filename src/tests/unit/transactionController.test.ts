@@ -3,6 +3,7 @@ import { prismaTestClient } from '../setup';
 import { createMockRes, createMockNext } from '../helpers';
 import * as transactionController from '../../controllers/transactionController';
 import { Transaction, Organization, Prisma } from '@prisma/client';
+import { AppError } from '../../middleware/errorHandler';
 
 jest.mock('@prisma/client', () => ({
   PrismaClient: jest.fn().mockImplementation(() => prismaTestClient),
@@ -43,7 +44,7 @@ describe('Transaction Controller', () => {
         updatedAt: new Date(),
       } as Transaction;
 
-      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
       (prismaTestClient.transaction.update as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         metadata: { description: 'Updated transaction' },
@@ -57,26 +58,28 @@ describe('Transaction Controller', () => {
         data: {
           transaction: expect.objectContaining({
             id: mockTransactionId,
+            originalAmount: '15.75',
+            roundedAmount: '16.00',
+            donationAmount: '0.25',
             metadata: { description: 'Updated transaction' },
           }),
         },
       });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 404 if transaction not found', async () => {
+    it('should handle transaction not found', async () => {
       const mockReq = createMockReq();
       (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(null);
 
       await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'Transaction not found',
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(404);
+      expect(mockNext.mock.calls[0][0].message).toBe('Transaction not found');
     });
 
-    it('should return 403 if trying to update another organization\'s transaction', async () => {
+    it('should handle unauthorized update of another organization\'s transaction', async () => {
       const mockReq = createMockReq();
       const differentOrgTransaction = {
         id: mockTransactionId,
@@ -92,14 +95,12 @@ describe('Transaction Controller', () => {
 
       await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'Not authorized to update this transaction',
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(403);
+      expect(mockNext.mock.calls[0][0].message).toBe('Not authorized to update this transaction');
     });
 
-    it('should return 400 if trying to update financial data', async () => {
+    it('should handle attempt to update financial data', async () => {
       const mockReq = createMockReq({
         body: {
           originalAmount: '20.00',
@@ -121,11 +122,9 @@ describe('Transaction Controller', () => {
 
       await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'Cannot update transaction amounts',
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(400);
+      expect(mockNext.mock.calls[0][0].message).toBe('Cannot update transaction amounts');
     });
 
     it('should allow admin to update any transaction', async () => {
@@ -144,7 +143,7 @@ describe('Transaction Controller', () => {
         updatedAt: new Date(),
       } as Transaction;
 
-      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
       (prismaTestClient.transaction.update as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         metadata: { description: 'Updated by admin' },
@@ -158,10 +157,14 @@ describe('Transaction Controller', () => {
         data: {
           transaction: expect.objectContaining({
             id: mockTransactionId,
+            originalAmount: '15.75',
+            roundedAmount: '16.00',
+            donationAmount: '0.25',
             metadata: { description: 'Updated by admin' },
           }),
         },
       });
+      expect(mockNext).not.toHaveBeenCalled();
     });
   });
 }); 

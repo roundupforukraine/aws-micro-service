@@ -24,21 +24,18 @@ interface PrismaError extends Error {
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
-export const registerOrganization = async (req: Request, res: Response) => {
+export const registerOrganization = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name } = req.body;
 
     if (!name) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Organization name is required'
-      });
+      throw new AppError('Organization name is required', 400);
     }
 
     // Generate a unique API key for the organization
     const apiKey = generateApiKey();
 
-    const organization = await prisma.organization.create({
+    const organization = await prismaClient.organization.create({
       data: {
         name,
         apiKey,
@@ -56,16 +53,9 @@ export const registerOrganization = async (req: Request, res: Response) => {
     // Handle Prisma unique constraint violations
     const prismaError = error as PrismaError;
     if (prismaError.code === 'P2002') {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'An organization with this name already exists'
-      });
+      throw new AppError('An organization with this name already exists', 400);
     }
-
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to create organization'
-    });
+    next(error);
   }
 };
 
@@ -79,28 +69,27 @@ export const registerOrganization = async (req: Request, res: Response) => {
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
-export const getOrganization = async (req: Request, res: Response) => {
+export const getOrganization = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
+
+    // Check if the requesting organization exists
+    if (!req.organization) {
+      throw new AppError('Invalid API key', 401);
+    }
 
     // Check if the requesting organization is the same as the requested organization
     // or if the requesting organization is an admin
     if (req.organization.id !== id && !req.organization.isAdmin) {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'You do not have permission to access this organization'
-      });
+      throw new AppError('Not authorized to access this organization', 403);
     }
 
-    const organization = await prisma.organization.findUnique({
+    const organization = await prismaClient.organization.findUnique({
       where: { id }
     });
 
     if (!organization) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Organization not found'
-      });
+      throw new AppError('Organization not found', 404);
     }
 
     return res.status(200).json({
@@ -110,10 +99,7 @@ export const getOrganization = async (req: Request, res: Response) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to retrieve organization'
-    });
+    next(error);
   }
 };
 
@@ -127,53 +113,116 @@ export const getOrganization = async (req: Request, res: Response) => {
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
-export const updateOrganization = async (req: Request, res: Response) => {
+export const updateOrganization = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { name } = req.body;
 
+    // Check if the requesting organization exists
+    if (!req.organization) {
+      throw new AppError('Invalid API key', 401);
+    }
+
     // Check if the requesting organization is the same as the requested organization
     // or if the requesting organization is an admin
     if (req.organization.id !== id && !req.organization.isAdmin) {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'You do not have permission to update this organization'
-      });
+      throw new AppError('Not authorized to update this organization', 403);
     }
 
-    // Prevent changing isAdmin status
-    const organization = await prisma.organization.update({
-      where: { id },
-      data: { name }
+    // Check if the organization exists
+    const existingOrg = await prismaClient.organization.findUnique({
+      where: { id }
     });
+
+    if (!existingOrg) {
+      throw new AppError('Organization not found', 404);
+    }
+
+    try {
+      // Prevent changing isAdmin status
+      const organization = await prismaClient.organization.update({
+        where: { id },
+        data: { name }
+      });
+
+      return res.status(200).json({
+        status: 'success',
+        data: {
+          organization
+        }
+      });
+    } catch (error) {
+      // Handle Prisma unique constraint violations
+      const prismaError = error as PrismaError;
+      if (prismaError.code === 'P2002') {
+        throw new AppError('An organization with this name already exists', 400);
+      }
+      throw error;
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * List organizations with pagination and filtering
+ * 
+ * This endpoint retrieves a paginated list of organizations.
+ * Only admin organizations can access this endpoint.
+ * 
+ * @param req - Express request object containing pagination and filter parameters
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
+export const listOrganizations = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.organization?.isAdmin) {
+      throw new AppError('Not authorized to list organizations', 403);
+    }
+
+    const { page = 1, limit = 10, search, sortBy = 'name', sortOrder = 'asc' } = req.query;
+
+    // Validate sort field
+    const allowedSortFields = ['name', 'createdAt', 'updatedAt'];
+    if (!allowedSortFields.includes(sortBy as string)) {
+      throw new AppError('Invalid sort field', 400);
+    }
+
+    // Build query filter
+    const where: any = {};
+    if (search) {
+      where.name = {
+        contains: search as string,
+        mode: 'insensitive'
+      };
+    }
+
+    // Fetch organizations and total count in parallel
+    const [organizations, total] = await Promise.all([
+      prismaClient.organization.findMany({
+        where,
+        skip: (Number(page) - 1) * Number(limit),
+        take: Number(limit),
+        orderBy: {
+          [sortBy as string]: sortOrder
+        }
+      }),
+      prismaClient.organization.count({ where })
+    ]);
 
     return res.status(200).json({
       status: 'success',
       data: {
-        organization
+        organizations,
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          pages: Math.ceil(total / Number(limit))
+        }
       }
     });
   } catch (error) {
-    // Handle Prisma unique constraint violations
-    const prismaError = error as PrismaError;
-    if (prismaError.code === 'P2002') {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'An organization with this name already exists'
-      });
-    }
-
-    // Handle Prisma record not found
-    if (prismaError.code === 'P2025') {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Organization not found'
-      });
-    }
-
-    return res.status(500).json({
-      status: 'error',
-      message: 'Failed to update organization'
-    });
+    next(error);
   }
 }; 

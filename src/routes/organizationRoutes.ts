@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerOrganization, getOrganization, updateOrganization } from '../controllers/organizationController';
+import { registerOrganization, getOrganization, updateOrganization, listOrganizations } from '../controllers/organizationController';
 import { adminAuth, combinedAuth } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -23,10 +23,16 @@ const router = express.Router();
  * - Update organization details
  * - Requires: valid API key (admin or organization), organization ID (UUID), name (optional)
  * - Returns: updated organization details
+ * 
+ * GET /api/organizations
+ * - List all organizations (admin only)
+ * - Requires: admin API key
+ * - Returns: paginated list of organizations
  */
 
 // Admin routes (require admin authentication)
 router.post('/register', adminAuth, registerOrganization);
+router.get('/', adminAuth, listOrganizations);
 
 // Organization routes (require either admin or organization API key)
 router.get('/:id', combinedAuth, getOrganization);

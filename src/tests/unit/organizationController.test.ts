@@ -1,7 +1,8 @@
-import { Request, Response } from 'express';
+import { Request, Response, NextFunction } from 'express';
 import { Organization } from '@prisma/client';
 import { registerOrganization, getOrganization, updateOrganization } from '../../controllers/organizationController';
 import { generateApiKey } from '../../utils/apiKey';
+import { AppError } from '../../middleware/errorHandler';
 
 // Mock the generateApiKey function
 jest.mock('../../utils/apiKey', () => ({
@@ -13,8 +14,8 @@ const mockCreate = jest.fn();
 const mockFindUnique = jest.fn();
 const mockUpdate = jest.fn();
 
-jest.mock('../../config/database', () => ({
-  prisma: {
+jest.mock('../../tests/setup', () => ({
+  prismaTestClient: {
     organization: {
       create: (...args: any[]) => mockCreate(...args),
       findUnique: (...args: any[]) => mockFindUnique(...args),
@@ -26,6 +27,7 @@ jest.mock('../../config/database', () => ({
 describe('Organization Controller', () => {
   let mockReq: Partial<Request>;
   let mockRes: Partial<Response>;
+  let mockNext: jest.Mock;
   let mockOrganization: Organization;
 
   beforeEach(() => {
@@ -49,6 +51,8 @@ describe('Organization Controller', () => {
       json: jest.fn()
     };
 
+    mockNext = jest.fn();
+
     // Clear all mocks
     jest.clearAllMocks();
   });
@@ -61,7 +65,7 @@ describe('Organization Controller', () => {
         name: 'New Organization'
       });
 
-      await registerOrganization(mockReq as Request, mockRes as Response);
+      await registerOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockCreate).toHaveBeenCalledWith({
         data: {
@@ -80,32 +84,29 @@ describe('Organization Controller', () => {
           })
         }
       });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 400 if name is missing', async () => {
+    it('should handle missing name', async () => {
       mockReq.body = {};
 
-      await registerOrganization(mockReq as Request, mockRes as Response);
+      await registerOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockCreate).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'Organization name is required'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(400);
+      expect(mockNext.mock.calls[0][0].message).toBe('Organization name is required');
     });
 
     it('should handle duplicate organization names', async () => {
       mockReq.body = { name: 'Existing Organization' };
       mockCreate.mockRejectedValueOnce({ code: 'P2002' });
 
-      await registerOrganization(mockReq as Request, mockRes as Response);
+      await registerOrganization(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'An organization with this name already exists'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(400);
+      expect(mockNext.mock.calls[0][0].message).toBe('An organization with this name already exists');
     });
   });
 
@@ -114,7 +115,7 @@ describe('Organization Controller', () => {
       mockReq.params = { id: 'test-id' };
       mockFindUnique.mockResolvedValueOnce(mockOrganization);
 
-      await getOrganization(mockReq as Request, mockRes as Response);
+      await getOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockFindUnique).toHaveBeenCalledWith({
         where: { id: 'test-id' }
@@ -126,20 +127,19 @@ describe('Organization Controller', () => {
           organization: mockOrganization
         }
       });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 403 if non-admin tries to access another organization', async () => {
+    it('should handle non-admin trying to access another organization', async () => {
       mockReq.params = { id: 'other-id' };
       mockReq.organization = { ...mockOrganization, isAdmin: false };
 
-      await getOrganization(mockReq as Request, mockRes as Response);
+      await getOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockFindUnique).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'You do not have permission to access this organization'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(403);
+      expect(mockNext.mock.calls[0][0].message).toBe('Not authorized to access this organization');
     });
 
     it('should allow admin to access any organization', async () => {
@@ -147,25 +147,24 @@ describe('Organization Controller', () => {
       mockReq.organization = { ...mockOrganization, isAdmin: true };
       mockFindUnique.mockResolvedValueOnce(mockOrganization);
 
-      await getOrganization(mockReq as Request, mockRes as Response);
+      await getOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockFindUnique).toHaveBeenCalledWith({
         where: { id: 'other-id' }
       });
       expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 404 if organization not found', async () => {
+    it('should handle organization not found', async () => {
       mockReq.params = { id: 'test-id' };
       mockFindUnique.mockResolvedValueOnce(null);
 
-      await getOrganization(mockReq as Request, mockRes as Response);
+      await getOrganization(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'Organization not found'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(404);
+      expect(mockNext.mock.calls[0][0].message).toBe('Organization not found');
     });
   });
 
@@ -173,12 +172,13 @@ describe('Organization Controller', () => {
     it('should update organization successfully', async () => {
       mockReq.params = { id: 'test-id' };
       mockReq.body = { name: 'Updated Organization' };
+      mockFindUnique.mockResolvedValueOnce(mockOrganization);
       mockUpdate.mockResolvedValueOnce({
         ...mockOrganization,
         name: 'Updated Organization'
       });
 
-      await updateOrganization(mockReq as Request, mockRes as Response);
+      await updateOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { id: 'test-id' },
@@ -193,68 +193,66 @@ describe('Organization Controller', () => {
           })
         }
       });
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
-    it('should return 403 if non-admin tries to update another organization', async () => {
+    it('should handle non-admin trying to update another organization', async () => {
       mockReq.params = { id: 'other-id' };
       mockReq.organization = { ...mockOrganization, isAdmin: false };
       mockReq.body = { name: 'Updated Organization' };
 
-      await updateOrganization(mockReq as Request, mockRes as Response);
+      await updateOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockUpdate).not.toHaveBeenCalled();
-      expect(mockRes.status).toHaveBeenCalledWith(403);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'You do not have permission to update this organization'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(403);
+      expect(mockNext.mock.calls[0][0].message).toBe('Not authorized to update this organization');
     });
 
     it('should allow admin to update any organization', async () => {
       mockReq.params = { id: 'other-id' };
       mockReq.organization = { ...mockOrganization, isAdmin: true };
       mockReq.body = { name: 'Updated Organization' };
+      mockFindUnique.mockResolvedValueOnce(mockOrganization);
       mockUpdate.mockResolvedValueOnce({
         ...mockOrganization,
         id: 'other-id',
         name: 'Updated Organization'
       });
 
-      await updateOrganization(mockReq as Request, mockRes as Response);
+      await updateOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(mockUpdate).toHaveBeenCalledWith({
         where: { id: 'other-id' },
         data: { name: 'Updated Organization' }
       });
       expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockNext).not.toHaveBeenCalled();
     });
 
     it('should handle duplicate organization names', async () => {
       mockReq.params = { id: 'test-id' };
       mockReq.body = { name: 'Existing Organization' };
+      mockFindUnique.mockResolvedValueOnce(mockOrganization);
       mockUpdate.mockRejectedValueOnce({ code: 'P2002' });
 
-      await updateOrganization(mockReq as Request, mockRes as Response);
+      await updateOrganization(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(400);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'An organization with this name already exists'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(400);
+      expect(mockNext.mock.calls[0][0].message).toBe('An organization with this name already exists');
     });
 
-    it('should return 404 if organization not found', async () => {
+    it('should handle organization not found', async () => {
       mockReq.params = { id: 'test-id' };
       mockReq.body = { name: 'Updated Organization' };
-      mockUpdate.mockRejectedValueOnce({ code: 'P2025' });
+      mockFindUnique.mockResolvedValueOnce(null);
 
-      await updateOrganization(mockReq as Request, mockRes as Response);
+      await updateOrganization(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(mockRes.status).toHaveBeenCalledWith(404);
-      expect(mockRes.json).toHaveBeenCalledWith({
-        status: 'fail',
-        message: 'Organization not found'
-      });
+      expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext.mock.calls[0][0].statusCode).toBe(404);
+      expect(mockNext.mock.calls[0][0].message).toBe('Organization not found');
     });
   });
 }); 

@@ -23,6 +23,23 @@ const calculateRoundUp = (amount: number): number => {
 };
 
 /**
+ * Serialize a transaction object to ensure Decimal values are properly converted to strings
+ */
+const serializeTransaction = (transaction: any) => {
+  const serialized = { ...transaction };
+  if (serialized.originalAmount) {
+    serialized.originalAmount = serialized.originalAmount.toString();
+  }
+  if (serialized.roundedAmount) {
+    serialized.roundedAmount = serialized.roundedAmount.toString();
+  }
+  if (serialized.donationAmount) {
+    serialized.donationAmount = serialized.donationAmount.toString();
+  }
+  return serialized;
+};
+
+/**
  * Create a new transaction
  * 
  * This endpoint creates a new transaction and calculates the round-up amount
@@ -45,9 +62,14 @@ export const createTransaction = async (
     const { originalAmount, metadata } = req.body;
     const organizationId = req.organization.id;
 
+    // Validate originalAmount
+    if (!originalAmount || isNaN(Number(originalAmount)) || Number(originalAmount) <= 0) {
+      throw new AppError('Original amount must be a positive number', 400);
+    }
+
     // Calculate rounded amount and donation amount
-    const roundedAmount = Math.ceil(originalAmount);
-    const donationAmount = calculateRoundUp(originalAmount);
+    const roundedAmount = Math.ceil(Number(originalAmount));
+    const donationAmount = calculateRoundUp(Number(originalAmount));
 
     // Create transaction in database
     const transaction = await prismaClient.transaction.create({
@@ -64,7 +86,7 @@ export const createTransaction = async (
     res.status(201).json({
       status: 'success',
       data: {
-        transaction,
+        transaction: serializeTransaction(transaction),
       },
     });
   } catch (error) {
@@ -116,7 +138,7 @@ export const getTransaction = async (
     res.status(200).json({
       status: 'success',
       data: {
-        transaction,
+        transaction: serializeTransaction(transaction),
       },
     });
   } catch (error) {
@@ -144,8 +166,17 @@ export const listTransactions = async (
       throw new AppError('Organization not found', 404);
     }
     
-    const { page = 1, limit = 10, startDate, endDate } = req.query;
+    const { page = 1, limit = 10, startDate, endDate, sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
     const organizationId = req.organization.id;
+
+    // Validate sort field
+    const allowedSortFields = ['createdAt', 'originalAmount', 'roundedAmount', 'donationAmount'];
+    if (sortBy && !allowedSortFields.includes(sortBy as string)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Invalid sort field'
+      });
+    }
 
     // Build query filter
     const where: any = {};
@@ -166,7 +197,9 @@ export const listTransactions = async (
         where,
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
-        orderBy: { createdAt: 'desc' },
+        orderBy: {
+          [sortBy as string]: sortOrder
+        },
       }),
       prismaClient.transaction.count({ where }),
     ]);
@@ -175,7 +208,7 @@ export const listTransactions = async (
     res.status(200).json({
       status: 'success',
       data: {
-        transactions,
+        transactions: transactions.map(serializeTransaction),
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -284,10 +317,7 @@ export const updateTransaction = async (
     // Check if trying to update financial data
     const financialFields = ['originalAmount', 'roundedAmount', 'donationAmount'];
     if (financialFields.some(field => field in req.body)) {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Cannot update transaction amounts',
-      });
+      throw new AppError('Cannot update transaction amounts', 400);
     }
 
     // Build query filter
@@ -303,18 +333,12 @@ export const updateTransaction = async (
     });
 
     if (!existingTransaction) {
-      return res.status(404).json({
-        status: 'fail',
-        message: 'Transaction not found',
-      });
+      throw new AppError('Transaction not found', 404);
     }
 
     // Check if user has permission to update this transaction
     if (!req.organization.isAdmin && existingTransaction.organizationId !== organizationId) {
-      return res.status(403).json({
-        status: 'fail',
-        message: 'Not authorized to update this transaction',
-      });
+      throw new AppError('Not authorized to update this transaction', 403);
     }
 
     // Update transaction metadata
@@ -327,7 +351,7 @@ export const updateTransaction = async (
     res.status(200).json({
       status: 'success',
       data: {
-        transaction,
+        transaction: serializeTransaction(transaction),
       },
     });
   } catch (error) {

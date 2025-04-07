@@ -7,6 +7,7 @@ describe('Organization API', () => {
   let adminApiKey: string;
   let testOrg: Organization;
   let adminOrg: Organization;
+  let otherOrg: Organization;
 
   beforeEach(() => {
     resetOrganizationCount();
@@ -17,13 +18,22 @@ describe('Organization API', () => {
     adminApiKey = 'test-admin-key';
 
     // Create a test organization
-    const response = await request(app)
+    const orgResponse = await request(app)
       .post('/api/organizations/register')
       .set('x-api-key', adminApiKey)
       .send({ name: 'Test Organization' });
 
-    expect(response.status).toBe(201);
-    testOrg = response.body.data.organization;
+    expect(orgResponse.status).toBe(201);
+    testOrg = orgResponse.body.data.organization;
+
+    // Create another organization for testing access control
+    const otherOrgResponse = await request(app)
+      .post('/api/organizations/register')
+      .set('x-api-key', adminApiKey)
+      .send({ name: 'Other Organization' });
+
+    expect(otherOrgResponse.status).toBe(201);
+    otherOrg = otherOrgResponse.body.data.organization;
 
     // Create an admin organization for testing
     adminOrg = await prismaTestClient.organization.create({
@@ -112,14 +122,6 @@ describe('Organization API', () => {
     });
 
     it('should return 403 when accessed by different organization', async () => {
-      const otherOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Other Organization',
-          apiKey: 'test-api-key-other',
-          isAdmin: false,
-        },
-      }) as Organization;
-
       const response = await request(app)
         .get(`/api/organizations/${testOrg.id}`)
         .set('x-api-key', otherOrg.apiKey);
@@ -197,14 +199,6 @@ describe('Organization API', () => {
     });
 
     it('should return 403 when updated by different organization', async () => {
-      const otherOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Other Organization',
-          apiKey: 'test-api-key-other',
-          isAdmin: false,
-        },
-      }) as Organization;
-
       const response = await request(app)
         .put(`/api/organizations/${testOrg.id}`)
         .set('x-api-key', otherOrg.apiKey)
@@ -234,6 +228,106 @@ describe('Organization API', () => {
       expect(response.status).toBe(404);
       expect(response.body.status).toBe('fail');
       expect(response.body.message).toBe('Organization not found');
+    });
+  });
+
+  describe('GET /api/organizations', () => {
+    beforeAll(async () => {
+      // Create multiple test organizations
+      await Promise.all([
+        prismaTestClient.organization.create({
+          data: {
+            name: 'Test Org 1',
+            apiKey: 'test-api-key-1',
+            isAdmin: false,
+          },
+        }),
+        prismaTestClient.organization.create({
+          data: {
+            name: 'Test Org 2',
+            apiKey: 'test-api-key-2',
+            isAdmin: false,
+          },
+        }),
+      ]);
+    });
+
+    it('should return paginated organizations when accessed by admin', async () => {
+      const response = await request(app)
+        .get('/api/organizations')
+        .set('x-api-key', adminApiKey)
+        .query({ page: 1, limit: 10 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data).toHaveProperty('organizations');
+      expect(Array.isArray(response.body.data.organizations)).toBe(true);
+      expect(response.body.data.organizations.length).toBeGreaterThan(0);
+      expect(response.body.data).toHaveProperty('pagination');
+      expect(response.body.data.pagination).toHaveProperty('page', 1);
+      expect(response.body.data.pagination).toHaveProperty('limit', 10);
+      expect(response.body.data.pagination).toHaveProperty('total');
+      expect(response.body.data.pagination).toHaveProperty('pages');
+    });
+
+    it('should return 403 if accessed by non-admin', async () => {
+      const response = await request(app)
+        .get('/api/organizations')
+        .set('x-api-key', testOrg.apiKey)
+        .query({ page: 1, limit: 10 });
+
+      expect(response.status).toBe(403);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toBe('Not authorized to list organizations');
+    });
+
+    it('should filter organizations by name', async () => {
+      const response = await request(app)
+        .get('/api/organizations')
+        .set('x-api-key', adminApiKey)
+        .query({ 
+          search: 'Test Org 1',
+          page: 1, 
+          limit: 10 
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.organizations).toHaveLength(1);
+      expect(response.body.data.organizations[0].name).toBe('Test Org 1');
+    });
+
+    it('should sort organizations by name', async () => {
+      const response = await request(app)
+        .get('/api/organizations')
+        .set('x-api-key', adminApiKey)
+        .query({ 
+          sortBy: 'name',
+          sortOrder: 'asc',
+          page: 1, 
+          limit: 10 
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.organizations.length).toBeGreaterThan(1);
+      const names = response.body.data.organizations.map((org: any) => org.name);
+      expect(names).toEqual([...names].sort());
+    });
+
+    it('should return 400 if sortBy is invalid', async () => {
+      const response = await request(app)
+        .get('/api/organizations')
+        .set('x-api-key', adminApiKey)
+        .query({ 
+          sortBy: 'invalidField',
+          page: 1, 
+          limit: 10 
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toContain('Invalid sort field');
     });
   });
 }); 

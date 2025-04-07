@@ -12,6 +12,7 @@ describe('Transaction API', () => {
   beforeAll(async () => {
     await setup();
     adminApiKey = 'test-admin-key';
+    organizationId = '1fc7e4e8-1258-495b-9fd0-44c45a5e17c7';
 
     // Create a test organization first
     const orgResponse = await request(app)
@@ -21,7 +22,6 @@ describe('Transaction API', () => {
 
     expect(orgResponse.status).toBe(201);
     apiKey = orgResponse.body.data.organization.apiKey;
-    organizationId = orgResponse.body.data.organization.id;
 
     // Create a test transaction
     const transactionResponse = await request(app)
@@ -83,6 +83,34 @@ describe('Transaction API', () => {
       expect(response.status).toBe(401);
       expect(response.body.status).toBe('fail');
       expect(response.body.message).toBe('API key is required');
+    });
+
+    it('should return 400 if originalAmount is invalid format', async () => {
+      const response = await request(app)
+        .post('/api/transactions')
+        .set('x-api-key', apiKey)
+        .send({
+          originalAmount: 'not-a-number',
+          metadata: { description: 'Test transaction' },
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toContain('Original amount must be a positive number');
+    });
+
+    it('should return 400 if originalAmount is negative', async () => {
+      const response = await request(app)
+        .post('/api/transactions')
+        .set('x-api-key', apiKey)
+        .send({
+          originalAmount: '-10.50',
+          metadata: { description: 'Test transaction' },
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toContain('Original amount must be a positive number');
     });
   });
 
@@ -153,12 +181,66 @@ describe('Transaction API', () => {
       expect(response.body.data.pagination).toHaveProperty('total');
       expect(response.body.data.pagination).toHaveProperty('pages');
     });
+
+    it('should filter transactions by date range', async () => {
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      
+      const endDate = new Date();
+      
+      const response = await request(app)
+        .get('/api/transactions')
+        .set('x-api-key', apiKey)
+        .query({
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          page: 1,
+          limit: 10
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data).toHaveProperty('transactions');
+      expect(Array.isArray(response.body.data.transactions)).toBe(true);
+    });
+
+    it('should sort transactions by date', async () => {
+      const response = await request(app)
+        .get('/api/transactions')
+        .set('x-api-key', apiKey)
+        .query({
+          sortBy: 'createdAt',
+          sortOrder: 'desc',
+          page: 1,
+          limit: 10
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data).toHaveProperty('transactions');
+      expect(Array.isArray(response.body.data.transactions)).toBe(true);
+    });
+
+    it('should return 400 if sortBy is invalid', async () => {
+      const response = await request(app)
+        .get('/api/transactions')
+        .set('x-api-key', apiKey)
+        .query({
+          sortBy: 'invalidField',
+          page: 1,
+          limit: 10
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toContain('Invalid sort field');
+    });
   });
 
-  describe('GET /api/transactions/reports/summary', () => {
+  describe('GET /api/transactions/report', () => {
     it('should return transaction summary', async () => {
       const response = await request(app)
-        .get('/api/transactions/reports/summary')
+        .get('/api/transactions/report')
         .set('x-api-key', apiKey);
 
       expect(response.status).toBe(200);
@@ -175,7 +257,7 @@ describe('Transaction API', () => {
       const endDate = new Date();
       
       const response = await request(app)
-        .get('/api/transactions/reports/summary')
+        .get('/api/transactions/report')
         .set('x-api-key', apiKey)
         .query({
           startDate: startDate.toISOString(),
