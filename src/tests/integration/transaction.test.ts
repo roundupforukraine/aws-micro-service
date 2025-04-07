@@ -182,4 +182,114 @@ describe('Transaction API', () => {
       expect(response.body.status).toBe('success');
     });
   });
+
+  describe('PUT /api/transactions/:id', () => {
+    it('should update transaction metadata', async () => {
+      const response = await request(app)
+        .put(`/api/transactions/${transactionId}`)
+        .set('x-api-key', apiKey)
+        .send({
+          metadata: { 
+            description: 'Updated test transaction',
+            updated: true 
+          }
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.transaction).toHaveProperty('id', transactionId);
+      expect(response.body.data.transaction.metadata).toEqual({
+        description: 'Updated test transaction',
+        updated: true
+      });
+      // Verify that financial data remains unchanged
+      expect(response.body.data.transaction.originalAmount).toBe('15.75');
+      expect(response.body.data.transaction.roundedAmount).toBe('16');
+      expect(response.body.data.transaction.donationAmount).toBe('0.25');
+    });
+
+    it('should return 404 if transaction not found', async () => {
+      const response = await request(app)
+        .put('/api/transactions/non-existent-id')
+        .set('x-api-key', apiKey)
+        .send({
+          metadata: { test: true }
+        });
+
+      expect(response.status).toBe(404);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toBe('Transaction not found');
+    });
+
+    it('should return 403 if trying to update another organization\'s transaction', async () => {
+      // Create another organization and transaction
+      const otherOrgResponse = await request(app)
+        .post('/api/organizations/register')
+        .send({ name: 'Other Organization' });
+
+      const otherOrgApiKey = otherOrgResponse.body.data.organization.apiKey;
+      
+      const otherTransactionResponse = await request(app)
+        .post('/api/transactions')
+        .set('x-api-key', otherOrgApiKey)
+        .send({
+          originalAmount: '20.50',
+          metadata: { description: 'Other org transaction' }
+        });
+
+      const otherTransactionId = otherTransactionResponse.body.data.transaction.id;
+
+      // Try to update other organization's transaction
+      const response = await request(app)
+        .put(`/api/transactions/${otherTransactionId}`)
+        .set('x-api-key', apiKey)
+        .send({
+          metadata: { test: true }
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toBe('Not authorized to update this transaction');
+    });
+
+    it('should return 400 if trying to update financial data', async () => {
+      const response = await request(app)
+        .put(`/api/transactions/${transactionId}`)
+        .set('x-api-key', apiKey)
+        .send({
+          originalAmount: '20.50',
+          metadata: { test: true }
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.status).toBe('fail');
+      expect(response.body.message).toBe('Cannot update transaction amounts');
+    });
+
+    it('should allow admin to update any transaction', async () => {
+      // Create an admin organization
+      const adminOrgResponse = await request(app)
+        .post('/api/organizations/register')
+        .send({ name: 'Admin Organization', isAdmin: true });
+
+      const adminApiKey = adminOrgResponse.body.data.organization.apiKey;
+
+      const response = await request(app)
+        .put(`/api/transactions/${transactionId}`)
+        .set('x-api-key', adminApiKey)
+        .send({
+          metadata: { 
+            description: 'Updated by admin',
+            updated: true 
+          }
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('success');
+      expect(response.body.data.transaction.metadata).toEqual({
+        description: 'Updated by admin',
+        updated: true
+      });
+    });
+  });
 }); 

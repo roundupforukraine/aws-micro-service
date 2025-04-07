@@ -281,6 +281,15 @@ export const updateTransaction = async (
     const { metadata } = req.body;
     const organizationId = req.organization.id;
 
+    // Check if trying to update financial data
+    const financialFields = ['originalAmount', 'roundedAmount', 'donationAmount'];
+    if (financialFields.some(field => field in req.body)) {
+      return res.status(400).json({
+        status: 'fail',
+        message: 'Cannot update transaction amounts',
+      });
+    }
+
     // Build query filter
     const where: any = { id };
     // Only filter by organizationId for non-admin users
@@ -294,7 +303,18 @@ export const updateTransaction = async (
     });
 
     if (!existingTransaction) {
-      throw new AppError('Transaction not found', 404);
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Transaction not found',
+      });
+    }
+
+    // Check if user has permission to update this transaction
+    if (!req.organization.isAdmin && existingTransaction.organizationId !== organizationId) {
+      return res.status(403).json({
+        status: 'fail',
+        message: 'Not authorized to update this transaction',
+      });
     }
 
     // Update transaction metadata
