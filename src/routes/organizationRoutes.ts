@@ -8,6 +8,8 @@ import {
   updateOrganization,
 } from '../controllers/organizationController';
 
+// Create separate routers for registration and protected routes
+const registrationRouter = Router();
 const router = Router();
 
 /**
@@ -31,9 +33,9 @@ const router = Router();
  * - Returns: updated organization details
  */
 
-// Register a new organization
-router.post(
-  '/register',
+// Register a new organization (no API key required)
+registrationRouter.post(
+  '/',
   [
     body('name').notEmpty().withMessage('Organization name is required'),
     validateRequest,
@@ -41,27 +43,25 @@ router.post(
   registerOrganization
 );
 
-// Get organization details
+// Get organization details (requires API key)
 router.get(
   '/:id',
   [
     body('id').isUUID().withMessage('Invalid organization ID'),
     validateRequest,
-    apiKeyAuth,
   ],
   getOrganization
 );
 
-// Update organization details
+// Update organization details (requires API key)
 router.put(
   '/:id',
   [
     body('id').isUUID().withMessage('Invalid organization ID'),
     body('name').optional().notEmpty().withMessage('Organization name cannot be empty'),
     validateRequest,
-    apiKeyAuth,
   ],
   updateOrganization
 );
 
-export default router; 
+export { registrationRouter, router as default }; 

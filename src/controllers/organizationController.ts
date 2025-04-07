@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
+import crypto from 'crypto';
 
 // Use mock client in test environment to avoid database interactions
 const prisma = process.env.NODE_ENV === 'test' 
@@ -30,7 +31,34 @@ export const registerOrganization = async (
   try {
     const { name } = req.body;
 
-    // Check if the authenticated user has admin privileges
+    // Check if any organizations exist
+    const organizationCount = await prisma.organization.count();
+
+    // If this is the first organization, create it as an admin
+    // Otherwise, check if the authenticated user has admin privileges
+    if (organizationCount === 0) {
+      const organization = await prisma.organization.create({
+        data: {
+          name,
+          apiKey: generateApiKey(),
+          isAdmin: true, // First organization is admin
+        },
+      });
+
+      return res.status(201).json({
+        status: 'success',
+        data: {
+          organization: {
+            id: organization.id,
+            name: organization.name,
+            apiKey: organization.apiKey,
+            isAdmin: organization.isAdmin,
+          },
+        },
+      });
+    }
+
+    // For subsequent registrations, require admin privileges
     if (!req.organization?.isAdmin) {
       return next(new AppError('Only administrators can register new organizations', 403));
     }
@@ -40,6 +68,7 @@ export const registerOrganization = async (
       data: {
         name,
         apiKey: generateApiKey(),
+        isAdmin: false,
       },
     });
 
@@ -51,6 +80,7 @@ export const registerOrganization = async (
           id: organization.id,
           name: organization.name,
           apiKey: organization.apiKey,
+          isAdmin: organization.isAdmin,
         },
       },
     });
@@ -157,5 +187,5 @@ export const updateOrganization = async (
  * @returns A unique API key string
  */
 function generateApiKey(): string {
-  return 'api-key-' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+  return 'api-key-' + crypto.randomBytes(16).toString('hex');
 } 
