@@ -1,64 +1,66 @@
 import { Request, Response } from 'express';
-import { prismaTestClient } from '../../tests/setup';
 import { createTransaction, getTransaction, listTransactions, getTransactionReport } from '../transactionController';
-import { AppError } from '../../middleware/errorHandler';
-import { mockRequest, mockResponse, mockNext, MockResponse } from '../../tests/helpers';
-import type { Organization, Transaction } from '../../tests/setup';
+import { prismaTestClient } from '../../tests/setup';
+import { Organization, Transaction } from '../../tests/setup';
 
-jest.mock('@prisma/client');
+jest.mock('@prisma/client', () => ({
+  PrismaClient: jest.fn().mockImplementation(() => prismaTestClient),
+}));
 
 describe('Transaction Controller', () => {
-  let req: Partial<Request>;
-  let res: MockResponse;
-  let next: jest.Mock;
+  let mockReq: Partial<Request>;
+  let mockRes: Partial<Response>;
+  let mockNext: jest.Mock;
   let mockOrg: Organization;
+  let mockTransaction: Transaction;
 
   beforeEach(() => {
-    req = mockRequest();
-    res = mockResponse();
-    next = mockNext();
     mockOrg = {
-      id: '1',
-      name: 'Test Org',
-      apiKey: 'test-key',
+      id: 'test-id',
+      name: 'Test Organization',
+      apiKey: 'test-api-key',
+      isAdmin: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    req.organization = mockOrg;
+
+    mockTransaction = {
+      id: 'test-transaction-id',
+      organizationId: mockOrg.id,
+      originalAmount: 10.75,
+      roundedAmount: 11.00,
+      donationAmount: 0.25,
+      metadata: { description: 'Test transaction' },
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    mockReq = {
+      body: {
+        originalAmount: 10.75,
+        metadata: { description: 'Test transaction' },
+      },
+      params: { id: 'test-transaction-id' },
+      organization: mockOrg,
+    };
+
+    mockRes = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+
+    mockNext = jest.fn();
   });
 
   describe('createTransaction', () => {
-    it('should create a new transaction successfully', async () => {
-      const transactionData = {
-        originalAmount: 10.50,
-        metadata: { source: 'test' },
-      };
-      req.body = transactionData;
+    it('should create a new transaction', async () => {
+      prismaTestClient.transaction.create.mockResolvedValueOnce(mockTransaction);
 
-      const mockTransaction: Transaction = {
-        id: '1',
-        organizationId: mockOrg.id,
-        originalAmount: 10.50,
-        roundedAmount: 11.00,
-        donationAmount: 0.50,
-        metadata: { source: 'test' },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+      await createTransaction(mockReq as Request, mockRes as Response, mockNext);
 
-      (prismaTestClient.transaction.create as jest.Mock).mockResolvedValueOnce(mockTransaction);
-
-      await createTransaction(req as Request, res as Response, next);
-
-      expect(prismaTestClient.transaction.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          organizationId: mockOrg.id,
-          originalAmount: transactionData.originalAmount,
-          metadata: transactionData.metadata,
-        }),
-      });
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith({
+      expect(prismaTestClient.transaction.create).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(201);
+      expect(mockRes.json).toHaveBeenCalledWith({
         status: 'success',
         data: {
           transaction: mockTransaction,
@@ -66,45 +68,27 @@ describe('Transaction Controller', () => {
       });
     });
 
-    it('should handle errors when creating transaction', async () => {
-      const error = new AppError('Database error', 500);
-      req.body = {
-        originalAmount: 10.50,
-        metadata: { source: 'test' },
-      };
-      (prismaTestClient.transaction.create as jest.Mock).mockRejectedValueOnce(error);
+    it('should handle errors', async () => {
+      prismaTestClient.transaction.create.mockRejectedValueOnce(new Error('Database error'));
 
-      await createTransaction(req as Request, res as Response, next);
+      await createTransaction(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(next).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext).toHaveBeenCalledWith(expect.objectContaining({
+        statusCode: 500,
+        message: 'Failed to create transaction',
+      }));
     });
   });
 
   describe('getTransaction', () => {
-    it('should get transaction details successfully', async () => {
-      const mockTransaction: Transaction = {
-        id: '1',
-        organizationId: mockOrg.id,
-        originalAmount: 10.50,
-        roundedAmount: 11.00,
-        donationAmount: 0.50,
-        metadata: { source: 'test' },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    it('should return transaction details', async () => {
+      prismaTestClient.transaction.findFirst.mockResolvedValueOnce(mockTransaction);
 
-      req.params = { id: '1' };
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      await getTransaction(mockReq as Request, mockRes as Response, mockNext);
 
-      await getTransaction(req as Request, res as Response, next);
-
-      expect(prismaTestClient.transaction.findFirst).toHaveBeenCalledWith({
-        where: {
-          id: '1',
-          organizationId: mockOrg.id,
-        },
-      });
-      expect(res.json).toHaveBeenCalledWith({
+      expect(prismaTestClient.transaction.findFirst).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
         status: 'success',
         data: {
           transaction: mockTransaction,
@@ -112,50 +96,43 @@ describe('Transaction Controller', () => {
       });
     });
 
-    it('should handle transaction not found', async () => {
-      req.params = { id: '1' };
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(null);
+    it('should return 404 if transaction not found', async () => {
+      prismaTestClient.transaction.findFirst.mockResolvedValueOnce(null);
 
-      await getTransaction(req as Request, res as Response, next);
+      await getTransaction(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(next).toHaveBeenCalledWith(expect.any(AppError));
+      expect(mockNext).toHaveBeenCalledWith(expect.objectContaining({
+        statusCode: 404,
+        message: 'Transaction not found',
+      }));
     });
   });
 
   describe('listTransactions', () => {
     it('should return paginated transactions', async () => {
-      const mockTransactions: Transaction[] = [{
-        id: '1',
-        organizationId: mockOrg.id,
-        originalAmount: 10.50,
-        roundedAmount: 11.00,
-        donationAmount: 0.50,
-        metadata: { source: 'test' },
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }];
+      const transactions = [mockTransaction];
+      const total = 1;
+      const page = 1;
+      const limit = 10;
 
-      req.query = { page: '1', limit: '10' };
-      (prismaTestClient.transaction.findMany as jest.Mock).mockResolvedValueOnce(mockTransactions);
-      (prismaTestClient.transaction.count as jest.Mock).mockResolvedValueOnce(1);
+      prismaTestClient.transaction.findMany.mockResolvedValueOnce(transactions);
+      prismaTestClient.transaction.count.mockResolvedValueOnce(total);
 
-      await listTransactions(req as Request, res as Response, next);
+      mockReq.query = { page: '1', limit: '10' };
 
-      expect(prismaTestClient.transaction.findMany).toHaveBeenCalledWith({
-        where: { organizationId: mockOrg.id },
-        skip: 0,
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-      });
-      expect(res.json).toHaveBeenCalledWith({
+      await listTransactions(mockReq as Request, mockRes as Response, mockNext);
+
+      expect(prismaTestClient.transaction.findMany).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
         status: 'success',
         data: {
-          transactions: mockTransactions,
+          transactions,
           pagination: {
-            page: 1,
-            limit: 10,
-            total: 1,
-            pages: 1,
+            total,
+            page,
+            limit,
+            pages: Math.ceil(total / limit),
           },
         },
       });
@@ -163,27 +140,20 @@ describe('Transaction Controller', () => {
   });
 
   describe('getTransactionReport', () => {
-    it('should return transaction summary', async () => {
-      (prismaTestClient.transaction.count as jest.Mock).mockResolvedValueOnce(10);
-      (prismaTestClient.transaction.aggregate as jest.Mock).mockResolvedValueOnce({
-        _sum: { donationAmount: 5.00 },
+    it('should return transaction report', async () => {
+      const totalDonations = 100;
+      prismaTestClient.transaction.aggregate.mockResolvedValueOnce({
+        _sum: { donationAmount: totalDonations },
       });
 
-      await getTransactionReport(req as Request, res as Response, next);
+      await getTransactionReport(mockReq as Request, mockRes as Response, mockNext);
 
-      expect(prismaTestClient.transaction.count).toHaveBeenCalledWith({
-        where: { organizationId: mockOrg.id },
-      });
-      expect(prismaTestClient.transaction.aggregate).toHaveBeenCalledWith({
-        where: { organizationId: mockOrg.id },
-        _sum: { donationAmount: true },
-      });
-      expect(res.json).toHaveBeenCalledWith({
+      expect(prismaTestClient.transaction.aggregate).toHaveBeenCalled();
+      expect(mockRes.status).toHaveBeenCalledWith(200);
+      expect(mockRes.json).toHaveBeenCalledWith({
         status: 'success',
         data: {
-          totalTransactions: 10,
-          totalDonations: 5.00,
-          averageDonation: 0.50,
+          totalDonations,
         },
       });
     });

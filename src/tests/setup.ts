@@ -19,39 +19,83 @@ export interface Transaction {
   id: string;
   organizationId: string;
   originalAmount: number;
-  originalCurrency: string;
-  convertedAmount: number;
-  convertedCurrency: string;
-  exchangeRate: number;
-  timestamp: Date;
+  roundedAmount: number;
+  donationAmount: number;
+  metadata: any;
   createdAt: Date;
   updatedAt: Date;
 }
 
-// Create mock PrismaClient with proper typing
+interface CreateOrganizationArgs {
+  data: Partial<Organization>;
+}
+
+interface FindUniqueOrganizationArgs {
+  where: {
+    id?: string;
+    apiKey?: string;
+  };
+}
+
+interface UpdateOrganizationArgs {
+  where: {
+    id: string;
+  };
+  data: Partial<Organization>;
+}
+
+interface CreateTransactionArgs {
+  data: Partial<Transaction>;
+}
+
 const mockOrganization = {
-  create: jest.fn(),
-  findUnique: jest.fn(),
-  update: jest.fn(),
+  id: 'test-org-id',
+  name: 'Test Organization',
+  apiKey: 'test-api-key',
+  isAdmin: true,
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 const mockTransaction = {
-  create: jest.fn(),
-  findFirst: jest.fn(),
-  findMany: jest.fn(),
-  count: jest.fn(),
-  aggregate: jest.fn(),
+  id: 'test-transaction-id',
+  organizationId: 'test-org-id',
+  originalAmount: 9.99,
+  roundedAmount: 10.00,
+  donationAmount: 0.01,
+  metadata: { description: 'Test transaction' },
+  createdAt: new Date(),
+  updatedAt: new Date(),
 };
 
 export const prismaTestClient = {
-  organization: mockOrganization,
-  transaction: mockTransaction,
-  $connect: jest.fn(),
+  organization: {
+    create: jest.fn().mockImplementation((args: any) => Promise.resolve({ ...mockOrganization, ...args.data })),
+    findUnique: jest.fn().mockImplementation((args: any) => {
+      if (args.where.apiKey?.startsWith('test-api-key')) {
+        return Promise.resolve(mockOrganization);
+      }
+      return Promise.resolve(null);
+    }),
+    update: jest.fn().mockImplementation((args: any) => Promise.resolve({ ...mockOrganization, ...args.data })),
+    deleteMany: jest.fn().mockImplementation(() => Promise.resolve({ count: 1 })),
+  },
+  transaction: {
+    create: jest.fn().mockImplementation((args: any) => Promise.resolve({ ...mockTransaction, ...args.data })),
+    findFirst: jest.fn().mockImplementation(() => Promise.resolve(mockTransaction)),
+    findMany: jest.fn().mockImplementation(() => Promise.resolve([mockTransaction])),
+    count: jest.fn().mockImplementation(() => Promise.resolve(1)),
+    aggregate: jest.fn().mockImplementation(() => Promise.resolve({
+      _sum: {
+        donationAmount: 0.01,
+      },
+    })),
+  },
   $disconnect: jest.fn(),
 } as unknown as PrismaClient;
 
 // Set up default mock implementations
-mockOrganization.create.mockImplementation(async (args: any) => {
+mockOrganizationCreate.mockImplementation(async (args: any) => {
   return {
     id: 'test-org-id',
     name: args.data.name,
@@ -62,7 +106,7 @@ mockOrganization.create.mockImplementation(async (args: any) => {
   };
 });
 
-mockOrganization.findUnique.mockImplementation(async (args: any) => {
+mockOrganizationFindUnique.mockImplementation(async (args: any) => {
   if (args.where.apiKey?.startsWith('test-api-key-')) {
     return {
       id: 'test-org-id',
@@ -76,7 +120,7 @@ mockOrganization.findUnique.mockImplementation(async (args: any) => {
   return null;
 });
 
-mockOrganization.update.mockImplementation(async (args: any) => {
+mockOrganizationUpdate.mockImplementation(async (args: any) => {
   return {
     id: args.where.id,
     name: args.data.name,
@@ -85,6 +129,14 @@ mockOrganization.update.mockImplementation(async (args: any) => {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+});
+
+mockOrganizationDeleteMany.mockImplementation(async () => {
+  return { count: 0 };
+});
+
+mockTransactionDeleteMany.mockImplementation(async () => {
+  return { count: 0 };
 });
 
 // Set up global test configuration
