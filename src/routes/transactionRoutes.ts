@@ -1,6 +1,6 @@
 import express from 'express';
-import { createTransaction, getTransaction, listTransactions, getTransactionReport, updateTransaction } from '../controllers/transactionController';
-import { combinedAuth } from '../middleware/authMiddleware';
+import { createTransaction, getTransaction, listTransactions, getTransactionReport, updateTransaction, deleteTransaction } from '../controllers/transactionController';
+import { combinedAuth, adminAuth } from '../middleware/authMiddleware';
 
 const router = express.Router();
 
@@ -24,6 +24,11 @@ const router = express.Router();
  * - Requires: valid API key (admin or organization), transaction ID (UUID), metadata (object)
  * - Returns: updated transaction details
  * 
+ * DELETE /api/transactions/:id
+ * - Delete a transaction by ID
+ * - Requires: admin API key, transaction ID (UUID)
+ * - Returns: success message
+ * 
  * GET /api/transactions
  * - Get all transactions for an organization
  * - Requires: valid API key (admin or organization), organizationId (UUID, optional)
@@ -40,6 +45,7 @@ router.post('/', combinedAuth, createTransaction);
 router.get('/report', combinedAuth, getTransactionReport);
 router.get('/:id', combinedAuth, getTransaction);
 router.put('/:id', combinedAuth, updateTransaction);
+router.delete('/:id', adminAuth, deleteTransaction);
 router.get('/', combinedAuth, listTransactions);
 
 export default router; 

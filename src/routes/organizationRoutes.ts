@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerOrganization, getOrganization, updateOrganization, listOrganizations } from '../controllers/organizationController';
+import { registerOrganization, getOrganization, updateOrganization, listOrganizations, deleteOrganization } from '../controllers/organizationController';
 import { adminAuth, combinedAuth } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -24,6 +24,11 @@ const router = express.Router();
  * - Requires: valid API key (admin or organization), organization ID (UUID), name (optional)
  * - Returns: updated organization details
  * 
+ * DELETE /api/organizations/:id
+ * - Delete an organization by ID
+ * - Requires: admin API key, organization ID (UUID)
+ * - Returns: success message
+ * 
  * GET /api/organizations
  * - List all organizations (admin only)
  * - Requires: admin API key
@@ -33,6 +38,7 @@ const router = express.Router();
 // Admin routes (require admin authentication)
 router.post('/register', adminAuth, registerOrganization);
 router.get('/', adminAuth, listOrganizations);
+router.delete('/:id', adminAuth, deleteOrganization);
 
 // Organization routes (require either admin or organization API key)
 router.get('/:id', combinedAuth, getOrganization);

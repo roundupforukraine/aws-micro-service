@@ -357,4 +357,50 @@ export const updateTransaction = async (
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * Delete transaction by ID
+ * 
+ * This endpoint deletes a transaction by its ID.
+ * Only admin organizations can access this endpoint.
+ * 
+ * @param req - Express request object containing transaction ID in params
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
+export const deleteTransaction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const { id } = req.params;
+
+    // Check if the requesting organization is an admin
+    if (!req.organization?.isAdmin) {
+      throw new AppError('Not authorized to delete transactions', 403);
+    }
+
+    // Check if the transaction exists
+    const existingTransaction = await prismaClient.transaction.findUnique({
+      where: { id }
+    });
+
+    if (!existingTransaction) {
+      throw new AppError('Transaction not found', 404);
+    }
+
+    // Delete the transaction
+    await prismaClient.transaction.delete({
+      where: { id }
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Transaction deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
 }; 

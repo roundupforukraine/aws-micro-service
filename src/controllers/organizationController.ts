@@ -225,4 +225,46 @@ export const listOrganizations = async (req: Request, res: Response, next: NextF
   } catch (error) {
     next(error);
   }
+};
+
+/**
+ * Delete organization by ID
+ * 
+ * This endpoint deletes an organization by its ID.
+ * Only admin organizations can access this endpoint.
+ * 
+ * @param req - Express request object containing organization ID in params
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
+export const deleteOrganization = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+
+    // Check if the requesting organization is an admin
+    if (!req.organization?.isAdmin) {
+      throw new AppError('Not authorized to delete organizations', 403);
+    }
+
+    // Check if the organization exists
+    const existingOrg = await prismaClient.organization.findUnique({
+      where: { id }
+    });
+
+    if (!existingOrg) {
+      throw new AppError('Organization not found', 404);
+    }
+
+    // Delete the organization and all its transactions
+    await prismaClient.organization.delete({
+      where: { id }
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Organization deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
 }; 
