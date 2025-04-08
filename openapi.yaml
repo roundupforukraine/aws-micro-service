@@ -17,7 +17,7 @@ info:
     url: https://opensource.org/licenses/MIT
 
 servers:
-  - url: /api
+  - url: http://localhost:3000/api
     description: API base path
 
 components:
