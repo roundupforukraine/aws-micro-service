@@ -82,6 +82,39 @@ openapi.yaml           # OpenAPI specification for API documentation
 API_DOCUMENTATION.md   # Detailed API documentation
 ```
 
+## Development Workflow
+
+This project follows the GitFlow branching model for development:
+
+### Main Branches
+- `main`: Production-ready code
+- `develop`: Latest development changes
+
+### Supporting Branches
+- `feature/*`: New features
+- `release/*`: Release preparation
+- `hotfix/*`: Emergency fixes for production
+- `bugfix/*`: Bug fixes for development
+
+### Branch Naming Convention
+- Feature branches: `feature/feature-name`
+- Release branches: `release/x.y.z`
+- Hotfix branches: `hotfix/x.y.z`
+- Bugfix branches: `bugfix/bug-description`
+
+### Workflow Steps
+1. Create feature branches from `develop`
+2. Create release branches from `develop`
+3. Create hotfix branches from `main`
+4. Merge features into `develop`
+5. Merge releases into both `main` and `develop`
+6. Tag all merges to `main` with version number
+
+### Version Control
+- We use Semantic Versioning (MAJOR.MINOR.PATCH)
+- All changes are documented in CHANGELOG.md
+- Release tags follow the format `v1.0.0`
+
 ## Prerequisites
 
 - Node.js (v18 or higher)
