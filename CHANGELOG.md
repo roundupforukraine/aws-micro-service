@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OpenAPI documentation for new delete endpoints
 - Integration tests for delete endpoints
 
+### Fixed
+- Organization deletion now properly handles related transactions
+
 ## [1.0.0] - 2024-04-08
 
 ### Added
