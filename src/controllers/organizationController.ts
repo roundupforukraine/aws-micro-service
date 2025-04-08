@@ -248,16 +248,27 @@ export const deleteOrganization = async (req: Request, res: Response, next: Next
 
     // Check if the organization exists
     const existingOrg = await prismaClient.organization.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        transactions: true
+      }
     });
 
     if (!existingOrg) {
       throw new AppError('Organization not found', 404);
     }
 
-    // Delete the organization and all its transactions
-    await prismaClient.organization.delete({
-      where: { id }
+    // Delete the organization and all its transactions in a transaction
+    await prismaClient.$transaction(async (tx: typeof prismaClient) => {
+      // First delete all transactions
+      await tx.transaction.deleteMany({
+        where: { organizationId: id }
+      });
+
+      // Then delete the organization
+      await tx.organization.delete({
+        where: { id }
+      });
     });
 
     return res.status(200).json({
