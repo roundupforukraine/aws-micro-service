@@ -131,4 +131,20 @@ call_api "GET" "/api/transactions/report?organizationId=$ORG1_ID" "$ADMIN_API_KE
 echo "Step 15: Admin gets transaction report for Organization 2"
 call_api "GET" "/api/transactions/report?organizationId=$ORG2_ID" "$ADMIN_API_KEY"
 
+# Step 16: Admin deletes Organization 1
+echo "Step 16: Admin deletes Organization 1"
+call_api "DELETE" "/api/organizations/$ORG1_ID" "$ADMIN_API_KEY"
+
+# Step 17: Admin deletes Organization 2
+echo "Step 17: Admin deletes Organization 2"
+call_api "DELETE" "/api/organizations/$ORG2_ID" "$ADMIN_API_KEY"
+
+# Step 18: Admin deletes Transaction 1
+echo "Step 18: Admin deletes Transaction 1"
+call_api "DELETE" "/api/transactions/$TRANSACTION1_ID" "$ADMIN_API_KEY"
+
+# Step 19: Admin deletes Transaction 2
+echo "Step 19: Admin deletes Transaction 2"
+call_api "DELETE" "/api/transactions/$TRANSACTION2_ID" "$ADMIN_API_KEY"
+
 echo "API sequence completed!" 

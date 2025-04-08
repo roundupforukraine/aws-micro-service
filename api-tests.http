@@ -194,4 +194,16 @@ x-api-key: {{adminApiKey}}
 
 ### Admin: Get transaction report for Organization 2
 GET {{baseUrl}}/api/transactions/report?organizationId={{org2Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Delete Organization 1
+DELETE {{baseUrl}}/api/organizations/{{org1Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Delete Organization 2
+DELETE {{baseUrl}}/api/organizations/{{org2Id}}
+x-api-key: {{adminApiKey}}
+
+### Admin: Delete Transaction (replace {transactionId} with actual ID)
+DELETE {{baseUrl}}/api/transactions/{transactionId}
 x-api-key: {{adminApiKey}} 
