@@ -12,16 +12,8 @@ describe('Transaction API', () => {
   beforeAll(async () => {
     await setup();
     adminApiKey = 'test-admin-key';
+    apiKey = 'test-api-key';
     organizationId = '1fc7e4e8-1258-495b-9fd0-44c45a5e17c7';
-
-    // Create a test organization first
-    const orgResponse = await request(app)
-      .post('/api/organizations/register')
-      .set('x-api-key', adminApiKey)
-      .send({ name: 'Test Organization' });
-
-    expect(orgResponse.status).toBe(201);
-    apiKey = orgResponse.body.data.organization.apiKey;
 
     // Create a test transaction
     const transactionResponse = await request(app)
@@ -29,7 +21,7 @@ describe('Transaction API', () => {
       .set('x-api-key', apiKey)
       .send({
         originalAmount: '15.75',
-        metadata: { description: 'Test transaction' },
+        metadata: { description: 'Test transaction' }
       });
 
     expect(transactionResponse.status).toBe(201);
@@ -42,21 +34,21 @@ describe('Transaction API', () => {
 
   describe('POST /api/transactions', () => {
     it('should create a new transaction with round-up calculation', async () => {
-      const response = await request(app)
+      const transactionResponse = await request(app)
         .post('/api/transactions')
         .set('x-api-key', apiKey)
         .send({
-          originalAmount: '10.50',
-          metadata: { description: 'Test transaction' },
+          originalAmount: '15.75',
+          metadata: { description: 'Test transaction' }
         });
 
-      expect(response.status).toBe(201);
-      expect(response.body.status).toBe('success');
-      expect(response.body.data.transaction).toHaveProperty('id');
-      expect(response.body.data.transaction.originalAmount.toString()).toBe('10.50');
-      expect(response.body.data.transaction.roundedAmount.toString()).toBe('11.00');
-      expect(response.body.data.transaction.donationAmount.toString()).toBe('0.50');
-      expect(response.body.data.transaction).toHaveProperty('organizationId', organizationId);
+      expect(transactionResponse.status).toBe(201);
+      expect(transactionResponse.body.status).toBe('success');
+      expect(transactionResponse.body.data.transaction).toHaveProperty('id');
+      expect(transactionResponse.body.data.transaction.originalAmount).toBe('15.75');
+      expect(transactionResponse.body.data.transaction.roundedAmount).toBe('16.00');
+      expect(transactionResponse.body.data.transaction.donationAmount).toBe('0.25');
+      expect(transactionResponse.body.data.transaction).toHaveProperty('organizationId', organizationId);
     });
 
     it('should return 400 if originalAmount is missing', async () => {
@@ -308,11 +300,13 @@ describe('Transaction API', () => {
     });
 
     it('should return 403 if trying to update another organization\'s transaction', async () => {
-      // Create another organization and transaction
+      // Create another organization with admin API key
       const otherOrgResponse = await request(app)
         .post('/api/organizations/register')
+        .set('x-api-key', adminApiKey)  // Use admin API key for registration
         .send({ name: 'Other Organization' });
 
+      expect(otherOrgResponse.status).toBe(201);  // Verify registration succeeded
       const otherOrgApiKey = otherOrgResponse.body.data.organization.apiKey;
       
       const otherTransactionResponse = await request(app)
@@ -323,6 +317,7 @@ describe('Transaction API', () => {
           metadata: { description: 'Other org transaction' }
         });
 
+      expect(otherTransactionResponse.status).toBe(201);  // Verify transaction creation succeeded
       const otherTransactionId = otherTransactionResponse.body.data.transaction.id;
 
       // Try to update other organization's transaction
@@ -353,13 +348,6 @@ describe('Transaction API', () => {
     });
 
     it('should allow admin to update any transaction', async () => {
-      // Create an admin organization
-      const adminOrgResponse = await request(app)
-        .post('/api/organizations/register')
-        .send({ name: 'Admin Organization', isAdmin: true });
-
-      const adminApiKey = adminOrgResponse.body.data.organization.apiKey;
-
       const response = await request(app)
         .put(`/api/transactions/${transactionId}`)
         .set('x-api-key', adminApiKey)

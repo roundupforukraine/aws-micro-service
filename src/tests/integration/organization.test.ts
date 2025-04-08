@@ -17,6 +17,15 @@ describe('Organization API', () => {
     await prismaTestClient.$connect();
     adminApiKey = 'test-admin-key';
 
+    // Create an admin organization first
+    adminOrg = await prismaTestClient.organization.create({
+      data: {
+        name: 'Admin Organization',
+        apiKey: adminApiKey, // Use the same admin API key
+        isAdmin: true,
+      },
+    }) as Organization;
+
     // Create a test organization
     const orgResponse = await request(app)
       .post('/api/organizations/register')
@@ -34,15 +43,6 @@ describe('Organization API', () => {
 
     expect(otherOrgResponse.status).toBe(201);
     otherOrg = otherOrgResponse.body.data.organization;
-
-    // Create an admin organization for testing
-    adminOrg = await prismaTestClient.organization.create({
-      data: {
-        name: 'Admin Organization',
-        apiKey: 'test-api-key-admin',
-        isAdmin: true,
-      },
-    }) as Organization;
   });
 
   afterAll(async () => {

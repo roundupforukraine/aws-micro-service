@@ -26,6 +26,11 @@ interface PrismaError extends Error {
  */
 export const registerOrganization = async (req: Request, res: Response, next: NextFunction) => {
   try {
+    // Check if the requesting organization is an admin
+    if (!req.organization?.isAdmin) {
+      throw new AppError('Only administrators can register new organizations', 403);
+    }
+
     const { name } = req.body;
 
     if (!name) {
@@ -53,7 +58,8 @@ export const registerOrganization = async (req: Request, res: Response, next: Ne
     // Handle Prisma unique constraint violations
     const prismaError = error as PrismaError;
     if (prismaError.code === 'P2002') {
-      throw new AppError('An organization with this name already exists', 400);
+      next(new AppError('An organization with this name already exists', 400));
+      return;
     }
     next(error);
   }
@@ -71,32 +77,31 @@ export const registerOrganization = async (req: Request, res: Response, next: Ne
  */
 export const getOrganization = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-
-    // Check if the requesting organization exists
     if (!req.organization) {
       throw new AppError('Invalid API key', 401);
     }
 
-    // Check if the requesting organization is the same as the requested organization
-    // or if the requesting organization is an admin
-    if (req.organization.id !== id && !req.organization.isAdmin) {
-      throw new AppError('Not authorized to access this organization', 403);
-    }
+    const { id } = req.params;
 
+    // Find organization
     const organization = await prismaClient.organization.findUnique({
-      where: { id }
+      where: { id },
     });
 
     if (!organization) {
       throw new AppError('Organization not found', 404);
     }
 
-    return res.status(200).json({
+    // Check authorization - only allow if admin or same organization
+    if (!req.organization.isAdmin && organization.id !== req.organization.id) {
+      throw new AppError('Not authorized to access this organization', 403);
+    }
+
+    res.status(200).json({
       status: 'success',
       data: {
-        organization
-      }
+        organization,
+      },
     });
   } catch (error) {
     next(error);
@@ -115,50 +120,39 @@ export const getOrganization = async (req: Request, res: Response, next: NextFun
  */
 export const updateOrganization = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { id } = req.params;
-    const { name } = req.body;
-
-    // Check if the requesting organization exists
     if (!req.organization) {
       throw new AppError('Invalid API key', 401);
     }
 
-    // Check if the requesting organization is the same as the requested organization
-    // or if the requesting organization is an admin
-    if (req.organization.id !== id && !req.organization.isAdmin) {
-      throw new AppError('Not authorized to update this organization', 403);
-    }
+    const { id } = req.params;
+    const { name } = req.body;
 
-    // Check if the organization exists
-    const existingOrg = await prismaClient.organization.findUnique({
-      where: { id }
+    // Find organization first
+    const organization = await prismaClient.organization.findUnique({
+      where: { id },
     });
 
-    if (!existingOrg) {
+    if (!organization) {
       throw new AppError('Organization not found', 404);
     }
 
-    try {
-      // Prevent changing isAdmin status
-      const organization = await prismaClient.organization.update({
-        where: { id },
-        data: { name }
-      });
-
-      return res.status(200).json({
-        status: 'success',
-        data: {
-          organization
-        }
-      });
-    } catch (error) {
-      // Handle Prisma unique constraint violations
-      const prismaError = error as PrismaError;
-      if (prismaError.code === 'P2002') {
-        throw new AppError('An organization with this name already exists', 400);
-      }
-      throw error;
+    // Check authorization - only allow if admin or same organization
+    if (!req.organization.isAdmin && organization.id !== req.organization.id) {
+      throw new AppError('Not authorized to update this organization', 403);
     }
+
+    // Update organization
+    const updatedOrganization = await prismaClient.organization.update({
+      where: { id },
+      data: { name },
+    });
+
+    res.status(200).json({
+      status: 'success',
+      data: {
+        organization: updatedOrganization,
+      },
+    });
   } catch (error) {
     next(error);
   }
@@ -176,7 +170,12 @@ export const updateOrganization = async (req: Request, res: Response, next: Next
  */
 export const listOrganizations = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!req.organization?.isAdmin) {
+    if (!req.organization) {
+      throw new AppError('Invalid API key', 401);
+    }
+
+    // Check if user is admin
+    if (!req.organization.isAdmin) {
       throw new AppError('Not authorized to list organizations', 403);
     }
 
@@ -192,13 +191,13 @@ export const listOrganizations = async (req: Request, res: Response, next: NextF
     const where: any = {};
     if (search) {
       where.name = {
-        contains: search as string,
+        contains: search,
         mode: 'insensitive'
       };
     }
 
     // Fetch organizations and total count in parallel
-    const [organizations, total] = await Promise.all([
+    const [organizations, totalCount] = await Promise.all([
       prismaClient.organization.findMany({
         where,
         skip: (Number(page) - 1) * Number(limit),
@@ -217,8 +216,8 @@ export const listOrganizations = async (req: Request, res: Response, next: NextF
         pagination: {
           page: Number(page),
           limit: Number(limit),
-          total,
-          pages: Math.ceil(total / Number(limit))
+          total: totalCount,
+          pages: Math.ceil(totalCount / Number(limit))
         }
       }
     });

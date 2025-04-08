@@ -192,19 +192,22 @@ export const listTransactions = async (
     }
 
     // Fetch transactions and total count in parallel
-    const [transactions, total] = await Promise.all([
+    const [transactions, totalCount] = await Promise.all([
       prismaClient.transaction.findMany({
         where,
         skip: (Number(page) - 1) * Number(limit),
         take: Number(limit),
         orderBy: {
-          [sortBy as string]: sortOrder
+          [sortBy as string]: sortOrder,
         },
       }),
       prismaClient.transaction.count({ where }),
     ]);
 
-    // Return success response with paginated transactions
+    // Calculate total pages
+    const totalPages = Math.ceil(totalCount / Number(limit));
+
+    // Return success response with transactions and pagination info
     res.status(200).json({
       status: 'success',
       data: {
@@ -212,8 +215,8 @@ export const listTransactions = async (
         pagination: {
           page: Number(page),
           limit: Number(limit),
-          total,
-          pages: Math.ceil(total / Number(limit)),
+          total: totalCount,
+          pages: totalPages,
         },
       },
     });
@@ -242,7 +245,7 @@ export const getTransactionReport = async (
     if (!req.organization) {
       throw new AppError('Organization not found', 404);
     }
-    
+
     const { startDate, endDate } = req.query;
     const organizationId = req.organization.id;
 
@@ -259,29 +262,29 @@ export const getTransactionReport = async (
       };
     }
 
-    // Fetch transaction count and donation sum in parallel
-    const [totalTransactions, totalDonations] = await Promise.all([
+    // Get total transactions and aggregate donation amounts
+    const [totalTransactions, aggregations] = await Promise.all([
       prismaClient.transaction.count({ where }),
       prismaClient.transaction.aggregate({
         where,
         _sum: {
           donationAmount: true,
         },
+        _avg: {
+          donationAmount: true,
+        },
       }),
     ]);
 
-    // Calculate average donation amount
-    const donationSum = totalDonations._sum.donationAmount || 0;
-    const averageDonation = totalTransactions > 0
-      ? Number(donationSum) / totalTransactions
-      : 0;
+    const totalDonations = aggregations?._sum?.donationAmount?.toString() || '0';
+    const averageDonation = aggregations?._avg?.donationAmount?.toString() || '0';
 
     // Return success response with report data
     res.status(200).json({
       status: 'success',
       data: {
         totalTransactions,
-        totalDonations: donationSum,
+        totalDonations,
         averageDonation,
       },
     });
@@ -291,12 +294,13 @@ export const getTransactionReport = async (
 };
 
 /**
- * Update a transaction's metadata
+ * Update transaction metadata
  * 
- * This endpoint allows organizations to update the metadata of their transactions.
- * Only the metadata field can be updated to maintain data integrity of financial records.
+ * This endpoint updates the metadata of a specific transaction.
+ * Organizations can only update their own transactions, while admins can update any transaction.
+ * Financial data (amounts) cannot be updated.
  * 
- * @param req - Express request object containing transaction ID in params and updated metadata in body
+ * @param req - Express request object containing transaction ID in params and updates in body
  * @param res - Express response object
  * @param next - Express next function for error handling
  */
@@ -309,49 +313,42 @@ export const updateTransaction = async (
     if (!req.organization) {
       throw new AppError('Organization not found', 404);
     }
-    
+
     const { id } = req.params;
     const { metadata } = req.body;
     const organizationId = req.organization.id;
 
-    // Check if trying to update financial data
-    const financialFields = ['originalAmount', 'roundedAmount', 'donationAmount'];
-    if (financialFields.some(field => field in req.body)) {
+    // Check for attempts to update financial data
+    const protectedFields = ['originalAmount', 'roundedAmount', 'donationAmount'];
+    if (protectedFields.some(field => field in req.body)) {
       throw new AppError('Cannot update transaction amounts', 400);
     }
 
-    // Build query filter
-    const where: any = { id };
-    // Only filter by organizationId for non-admin users
-    if (!req.organization.isAdmin) {
-      where.organizationId = organizationId;
-    }
-
-    // Find transaction first to verify it exists and belongs to the organization
-    const existingTransaction = await prismaClient.transaction.findFirst({
-      where,
+    // Find the transaction first to check authorization
+    const transaction = await prismaClient.transaction.findUnique({
+      where: { id }
     });
 
-    if (!existingTransaction) {
+    if (!transaction) {
       throw new AppError('Transaction not found', 404);
     }
 
-    // Check if user has permission to update this transaction
-    if (!req.organization.isAdmin && existingTransaction.organizationId !== organizationId) {
+    // Check authorization - only allow if admin or same organization
+    if (!req.organization.isAdmin && transaction.organizationId !== organizationId) {
       throw new AppError('Not authorized to update this transaction', 403);
     }
 
-    // Update transaction metadata
-    const transaction = await prismaClient.transaction.update({
+    // Update transaction
+    const updatedTransaction = await prismaClient.transaction.update({
       where: { id },
       data: { metadata },
     });
 
-    // Return success response with updated transaction
+    // Return success response
     res.status(200).json({
       status: 'success',
       data: {
-        transaction: serializeTransaction(transaction),
+        transaction: serializeTransaction(updatedTransaction),
       },
     });
   } catch (error) {

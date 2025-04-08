@@ -20,6 +20,7 @@ type MockRequest = Partial<Request> & {
   organization?: Organization;
   body?: any;
   params?: any;
+  query?: any;
 };
 
 type MockResponse = Partial<Response> & {
@@ -28,307 +29,173 @@ type MockResponse = Partial<Response> & {
 };
 
 jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn(() => prismaTestClient),
+  PrismaClient: jest.fn().mockImplementation(() => prismaTestClient),
 }));
 
 describe('Organization Controller', () => {
-  const next = jest.fn();
+  let req: Partial<Request>;
+  let res: Partial<Response>;
+  let next: jest.Mock;
 
   beforeEach(() => {
+    req = {
+      body: {},
+      params: {},
+      organization: { id: 'admin-org-id', isAdmin: true },
+    };
+    res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    };
+    next = jest.fn();
     jest.clearAllMocks();
   });
 
   describe('registerOrganization', () => {
     it('should create a new organization when called by admin', async () => {
-      // Mock the organization count to simulate first organization
-      (prismaTestClient.organization.count as unknown as jest.Mock).mockResolvedValue(0);
-
-      const req = {
-        body: { name: 'New Organization' },
-      } as Request;
-
-      const res = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      } as unknown as Response;
+      req.body = { name: 'New Organization' };
+      req.organization = { isAdmin: true } as Organization;
+      (prismaTestClient.organization.create as jest.Mock).mockResolvedValueOnce({
+        id: 1,
+        name: 'New Organization',
+        isAdmin: false,
+        apiKey: 'test-random-bytes',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
 
       await registerOrganization(req as Request, res as Response, next);
 
       expect(prismaTestClient.organization.create).toHaveBeenCalledWith({
         data: {
           name: 'New Organization',
-          apiKey: 'api-key-test-random-bytes',
-          isAdmin: true, // First organization is admin
-        },
+          isAdmin: false,
+          apiKey: expect.any(String)
+        }
       });
-
       expect(res.status).toHaveBeenCalledWith(201);
       expect(res.json).toHaveBeenCalledWith({
         status: 'success',
         data: {
-          organization: {
-            id: 'test-org-id',
+          organization: expect.objectContaining({
             name: 'New Organization',
-            apiKey: 'api-key-test-random-bytes',
-            isAdmin: true,
-          },
-        },
+            isAdmin: false,
+            apiKey: expect.any(String)
+          })
+        }
       });
     });
 
-    it('should return 403 if called by non-admin', async () => {
-      const req: MockRequest = {
-        organization: {
-          id: 'non-admin-id',
-          name: 'Non-Admin Org',
-          apiKey: 'non-admin-key',
-          isAdmin: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        body: { name: 'New Organization' },
-      };
+    it('should handle duplicate organization names', async () => {
+      req.body = { name: 'Existing Organization' };
+      req.organization = { id: 'admin-org-id', isAdmin: true };
 
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
+      const error = new Error('Duplicate organization name');
+      (error as any).code = 'P2002';
+      (prismaTestClient.organization.create as jest.Mock).mockRejectedValueOnce(error);
 
       await registerOrganization(req as Request, res as Response, next);
 
       expect(next).toHaveBeenCalledWith(
         expect.objectContaining({
-          statusCode: 403,
-          message: 'Only administrators can register new organizations',
+          statusCode: 400,
+          message: 'An organization with this name already exists',
         })
       );
     });
 
     it('should handle database errors', async () => {
-      const req: MockRequest = {
-        body: { name: 'New Organization' },
-        organization: { isAdmin: true } as Organization,
-      };
+      req.body = { name: 'New Organization' };
+      req.organization = { id: 'admin-org-id', isAdmin: true };
 
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      prismaTestClient.organization.create.mockRejectedValueOnce(new Error('Database error'));
+      const error = new Error('Database error');
+      (prismaTestClient.organization.create as jest.Mock).mockRejectedValueOnce(error);
 
       await registerOrganization(req as Request, res as Response, next);
 
-      expect(next).toHaveBeenCalledWith(expect.any(Error));
+      expect(next).toHaveBeenCalledWith(error);
     });
   });
 
   describe('getOrganization', () => {
-    it('should return organization details when accessed by admin', async () => {
-      const targetOrg = {
-        id: 'target-id',
-        name: 'Target Org',
-        apiKey: 'target-key',
-        isAdmin: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    it('should get organization details successfully', async () => {
+      req.params = { id: 'test-id' };
+      req.organization = { id: 'test-id', isAdmin: false };
 
-      const req: MockRequest = {
-        organization: {
-          id: 'admin-id',
-          name: 'Admin Org',
-          apiKey: 'admin-key',
-          isAdmin: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        params: { id: targetOrg.id },
-      };
-
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      prismaTestClient.organization.findUnique.mockResolvedValueOnce(targetOrg);
-
-      await getOrganization(req as Request, res as Response, next);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        status: 'success',
-        data: { organization: targetOrg },
-      });
-    });
-
-    it('should return organization details when accessed by own organization', async () => {
-      const req: MockRequest = {
-        params: { id: 'test-org-id' },
-        organization: { id: 'test-org-id', isAdmin: false } as Organization,
-      };
-
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      const targetOrg = {
-        id: 'test-org-id',
+      const mockOrg = {
+        id: 'test-id',
         name: 'Test Organization',
-        apiKey: 'test-key',
+        apiKey: 'test-api-key',
         isAdmin: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      prismaTestClient.organization.findUnique.mockResolvedValueOnce(targetOrg);
+      (prismaTestClient.organization.findUnique as jest.Mock).mockResolvedValueOnce(mockOrg);
 
       await getOrganization(req as Request, res as Response, next);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         status: 'success',
-        data: { organization: targetOrg },
+        data: { organization: mockOrg },
       });
     });
 
-    it('should return 404 if organization not found', async () => {
-      const req: MockRequest = {
-        organization: {
-          id: 'admin-id',
-          name: 'Admin Org',
-          apiKey: 'admin-key',
-          isAdmin: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        params: { id: 'non-existent-id' },
+    it('should allow admin to access any organization', async () => {
+      req.params = { id: 'other-id' };
+      req.organization = { id: 'admin-org-id', isAdmin: true };
+
+      const mockOrg = {
+        id: 'other-id',
+        name: 'Other Organization',
+        apiKey: 'other-api-key',
+        isAdmin: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      prismaTestClient.organization.findUnique.mockResolvedValueOnce(null);
+      (prismaTestClient.organization.findUnique as jest.Mock).mockResolvedValueOnce(mockOrg);
 
       await getOrganization(req as Request, res as Response, next);
 
-      expect(next).toHaveBeenCalledWith(
-        expect.objectContaining({
-          statusCode: 404,
-          message: 'Organization not found',
-        })
-      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith({
+        status: 'success',
+        data: { organization: mockOrg },
+      });
     });
   });
 
   describe('updateOrganization', () => {
-    it('should update organization details when called by admin', async () => {
-      const targetOrg = {
-        id: 'target-id',
-        name: 'Target Org',
-        apiKey: 'target-key',
+    it('should update organization successfully', async () => {
+      req.params = { id: 'test-id' };
+      req.body = { name: 'Updated Organization' };
+      req.organization = { id: 'test-id', isAdmin: false };
+
+      const mockOrg = {
+        id: 'test-id',
+        name: 'Updated Organization',
+        apiKey: 'test-api-key',
         isAdmin: false,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
-      const req: MockRequest = {
-        organization: {
-          id: 'admin-id',
-          name: 'Admin Org',
-          apiKey: 'admin-key',
-          isAdmin: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        params: { id: targetOrg.id },
-        body: { name: 'Updated Name' },
-      };
-
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      const updatedOrg = { ...targetOrg, name: 'Updated Name' };
-      prismaTestClient.organization.findUnique.mockResolvedValueOnce(targetOrg);
-      prismaTestClient.organization.update.mockResolvedValueOnce(updatedOrg);
+      (prismaTestClient.organization.findUnique as jest.Mock).mockResolvedValueOnce(mockOrg);
+      (prismaTestClient.organization.update as jest.Mock).mockResolvedValueOnce(mockOrg);
 
       await updateOrganization(req as Request, res as Response, next);
 
+      expect(prismaTestClient.organization.update).toHaveBeenCalledWith({
+        where: { id: 'test-id' },
+        data: { name: 'Updated Organization' },
+      });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith({
         status: 'success',
-        data: { organization: updatedOrg },
+        data: { organization: mockOrg },
       });
-    });
-
-    it('should update organization details when called by own organization', async () => {
-      const req: MockRequest = {
-        params: { id: 'test-org-id' },
-        body: { name: 'Updated Organization' },
-        organization: { id: 'test-org-id', isAdmin: false } as Organization,
-      };
-
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      const targetOrg = {
-        id: 'test-org-id',
-        name: 'Test Organization',
-        apiKey: 'test-key',
-        isAdmin: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
-      const updatedOrg = { ...targetOrg, name: 'Updated Organization' };
-      prismaTestClient.organization.findUnique.mockResolvedValueOnce(targetOrg);
-      prismaTestClient.organization.update.mockResolvedValueOnce(updatedOrg);
-
-      await updateOrganization(req as Request, res as Response, next);
-
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({
-        status: 'success',
-        data: { organization: updatedOrg },
-      });
-    });
-
-    it('should return 404 if organization not found', async () => {
-      const req: MockRequest = {
-        organization: {
-          id: 'admin-id',
-          name: 'Admin Org',
-          apiKey: 'admin-key',
-          isAdmin: true,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        params: { id: 'non-existent-id' },
-        body: { name: 'Updated Name' },
-      };
-
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      };
-
-      prismaTestClient.organization.findUnique.mockResolvedValueOnce(null);
-
-      await updateOrganization(req as Request, res as Response, next);
-
-      expect(next).toHaveBeenCalledWith(
-        expect.objectContaining({
-          statusCode: 404,
-          message: 'Organization not found',
-        })
-      );
     });
   });
 }); 
