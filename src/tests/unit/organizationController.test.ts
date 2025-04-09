@@ -103,6 +103,10 @@ describe('Organization Controller', () => {
         isAdmin: true,
       };
 
+      // Add mock for findUnique to return the organization
+      const mockOrg = { id: 'test-id', name: 'Test Org', apiKey: 'test-key', isAdmin: false, createdAt: new Date(), updatedAt: new Date() };
+      (prismaTestClient.organization.findUnique as jest.Mock).mockResolvedValueOnce(mockOrg);
+
       await getOrganization(mockReq as Request, mockRes as Response, mockNext);
 
       expect(prismaTestClient.organization.findUnique).toHaveBeenCalledWith({
@@ -184,6 +188,12 @@ describe('Organization Controller', () => {
         ...mockReq.organization,
         isAdmin: true,
       };
+
+      // Add mocks for findUnique and update
+      const mockExistingOrg = { id: 'test-id', name: 'Old Name', apiKey: 'test-key', isAdmin: false, createdAt: new Date(), updatedAt: new Date() };
+      const mockUpdatedOrg = { ...mockExistingOrg, name: 'Updated Organization', updatedAt: new Date() };
+      (prismaTestClient.organization.findUnique as jest.Mock).mockResolvedValueOnce(mockExistingOrg);
+      (prismaTestClient.organization.update as jest.Mock).mockResolvedValueOnce(mockUpdatedOrg);
 
       await updateOrganization(mockReq as Request, mockRes as Response, mockNext);
 
