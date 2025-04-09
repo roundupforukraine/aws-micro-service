@@ -38,7 +38,7 @@ jest.mock('@prisma/client', () => {
 });
 
 // Export types for use in tests
-// export { Organization, Transaction };
+export { Organization, Transaction };
 
 type DeepMockProxy<T> = {
   [K in keyof T]: T[K] extends (...args: any[]) => any
