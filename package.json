@@ -1,6 +1,6 @@
 {
   "name": "ukraine-roundup-api",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "API service for Ukraine round-up donations",
   "main": "dist/index.js",
   "scripts": {
