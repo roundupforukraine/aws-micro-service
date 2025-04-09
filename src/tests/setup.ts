@@ -153,12 +153,30 @@ prismaTestClient.organization.update.mockImplementation(((args: Prisma.Organizat
 prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.OrganizationFindManyArgs) => {
   let orgs = Array.from(organizationStore.values());
 
-  // Filtering (simplified example)
-  if (args?.where?.name && typeof args.where.name === 'object' && 'contains' in args.where.name && args.where.name.contains !== undefined) {
-    // Assuming contains is a string for mock purposes
-    const searchTerm = (args.where.name.contains as string).toLowerCase(); 
-    orgs = orgs.filter(o => o.name.toLowerCase().includes(searchTerm));
+  // Apply Authorization Filter (example: only return non-admins if not requested by admin?)
+  // This depends on how authorization should work for list - assuming controller handles it for now.
+
+  // Apply Where Clause Filtering
+  if (args?.where) {
+    orgs = orgs.filter(org => {
+        let match = true;
+        // Simplified name search
+        if (args.where?.name && typeof args.where.name === 'object' && 'contains' in args.where.name && args.where.name.contains !== undefined) {
+            if (!org.name.toLowerCase().includes((args.where.name.contains as string).toLowerCase())) {
+                match = false;
+            }
+        }
+        // Add other `where` conditions here if needed (e.g., id, isAdmin)
+        if (args.where?.isAdmin !== undefined && org.isAdmin !== args.where.isAdmin) {
+            match = false;
+        }
+        // ... etc.
+        return match;
+    });
   }
+  
+  // Get total count *after* filtering
+  const totalCount = orgs.length;
 
   // Sorting (simplified example - handles single object orderBY)
   if (args?.orderBy && !Array.isArray(args.orderBy)) {
@@ -166,7 +184,6 @@ prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.Organi
     if (orgs.length > 0 && sortKey in orgs[0]) { 
         const sortOrder = (args.orderBy as any)[sortKey] === 'desc' ? -1 : 1;
         orgs.sort((a, b) => {
-            // Basic sort, might need refinement for different types
             const valA = a[sortKey];
             const valB = b[sortKey];
             if (valA < valB) return -1 * sortOrder;
@@ -178,10 +195,42 @@ prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.Organi
 
   // Pagination
   const skip = args?.skip ?? 0;
-  const take = args?.take ?? orgs.length;
-  orgs = orgs.slice(skip, skip + take);
+  const take = args?.take ?? totalCount; // Use totalCount for default take
+  const paginatedOrgs = orgs.slice(skip, skip + take);
 
-  return Promise.resolve(orgs);
+  // Add count mock dependency here for pagination total
+  // This assumes a separate prismaClient.organization.count mock exists or 
+  // we calculate the total based on the filtered list before pagination.
+  // We'll use the calculated totalCount here.
+
+  // The controller expects `organizations` and `pagination` properties
+  // The mock should return the data in the structure the actual Prisma call would,
+  // but since we are mocking the entire call, we just return the array.
+  // The controller's assembly of the final response (with pagination object) is tested separately.
+  // However, to make the integration test pass, we might need count mock too.
+  // For now, just return the filtered, sorted, paginated list.
+  return Promise.resolve(paginatedOrgs); 
+}) as any);
+
+// Add a mock for organization.count to work with pagination
+prismaTestClient.organization.count.mockImplementation(((args?: Prisma.OrganizationCountArgs) => {
+    // Apply the same filtering as findMany
+    let orgs = Array.from(organizationStore.values());
+    if (args?.where) {
+      orgs = orgs.filter(org => {
+        let match = true;
+        if (args.where?.name && typeof args.where.name === 'object' && 'contains' in args.where.name && args.where.name.contains !== undefined) {
+            if (!org.name.toLowerCase().includes((args.where.name.contains as string).toLowerCase())) {
+                match = false;
+            }
+        }
+        if (args.where?.isAdmin !== undefined && org.isAdmin !== args.where.isAdmin) {
+            match = false;
+        }
+        return match;
+      });
+    }
+    return Promise.resolve(orgs.length);
 }) as any);
 
 prismaTestClient.transaction.create.mockImplementation(((args: Prisma.TransactionCreateArgs) => {
