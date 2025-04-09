@@ -1,0 +1,23 @@
+{
+  "cluster": "aws-micro-service-${ENVIRONMENT}",
+  "service": "aws-micro-service",
+  "desiredCount": 1,
+  "taskDefinition": "aws-micro-service:${TASK_DEFINITION_REVISION}",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": ["${SUBNET_1_ID}", "${SUBNET_2_ID}"],
+      "securityGroups": ["${SECURITY_GROUP_ID}"],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "${TARGET_GROUP_ARN}",
+      "containerName": "aws-micro-service",
+      "containerPort": 3000
+    }
+  ],
+  "healthCheckGracePeriodSeconds": 60,
+  "enableECSManagedTags": true,
+  "propagateTags": "SERVICE"
+} 

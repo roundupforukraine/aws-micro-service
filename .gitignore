@@ -9,6 +9,23 @@ yarn-error.log*
 .env.local
 .env.*.local
 
+# AWS credentials
+aws-credentials.json
+
+# AWS task definitions
+simple-task-definition.json
+task-definition.json
+
+# AWS infrastructure
+infrastructure/*.json
+!infrastructure/*.template.json
+!infrastructure/cloudformation.yml
+!infrastructure/alb.yml
+
+# AWS scripts
+scripts/generate-infrastructure-config.sh
+!scripts/generate-infrastructure-config.template.sh
+
 # Build output
 dist/
 build/

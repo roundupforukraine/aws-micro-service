@@ -1,5 +1,5 @@
 import express from 'express';
-import { registerOrganization, getOrganization, updateOrganization, listOrganizations, deleteOrganization } from '../controllers/organizationController';
+import { registerOrganization, getOrganization, updateOrganization, listOrganizations, deleteOrganization, initializeAdmin } from '../controllers/organizationController';
 import { adminAuth, combinedAuth } from '../middleware/authMiddleware';
 
 const router = express.Router();
@@ -34,6 +34,9 @@ const router = express.Router();
  * - Requires: admin API key
  * - Returns: paginated list of organizations
  */
+
+// Public route for initializing admin (no auth required)
+router.post('/init-admin', initializeAdmin);
 
 // Admin routes (require admin authentication)
 router.post('/register', adminAuth, registerOrganization);
