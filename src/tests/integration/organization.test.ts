@@ -278,7 +278,7 @@ describe('Organization API', () => {
 
       expect(response.status).toBe(403);
       expect(response.body.status).toBe('fail');
-      expect(response.body.message).toBe('Not authorized to list organizations');
+      expect(response.body.message).toBe('Invalid admin API key');
     });
 
     it('should filter organizations by name', async () => {
