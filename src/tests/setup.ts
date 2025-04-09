@@ -184,151 +184,114 @@ prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.Organi
   return Promise.resolve(orgs);
 }) as any);
 
-prismaTestClient.transaction.create.mockImplementation((data: any) => {
-  const transaction = {
-    id: data.data.id || 'test-transaction-id',
-    organizationId: data.data.organizationId,
-    originalAmount: new Prisma.Decimal(data.data.originalAmount),
-    roundedAmount: new Prisma.Decimal(data.data.roundedAmount),
-    donationAmount: new Prisma.Decimal(data.data.donationAmount),
-    metadata: data.data.metadata || {},
+prismaTestClient.transaction.create.mockImplementation(((args: Prisma.TransactionCreateArgs) => {
+  if (!args.data.organizationId) {
+    throw new Error('organizationId is required to create a transaction');
+  }
+  const transactionId = `test-tx-${Date.now()}-${Math.random()}`;
+  // Ensure metadata adheres to JsonValue (no undefined)
+  const safeMetadata = JSON.parse(JSON.stringify(args.data.metadata ?? {})); 
+  const transaction: Transaction = {
+    id: transactionId,
+    organizationId: args.data.organizationId,
+    originalAmount: new Prisma.Decimal(args.data.originalAmount?.toString() ?? '0'),
+    roundedAmount: new Prisma.Decimal(args.data.roundedAmount?.toString() ?? '0'),
+    donationAmount: new Prisma.Decimal(args.data.donationAmount?.toString() ?? '0'),
+    metadata: safeMetadata, // Use sanitized metadata
     createdAt: new Date(),
     updatedAt: new Date(),
   };
   transactionStore.set(transaction.id, transaction);
   return Promise.resolve(transaction);
-});
+}) as any);
 
-prismaTestClient.transaction.findFirst.mockImplementation((data: any) => {
-  if (data.where.id === 'non-existent-id') {
-    return Promise.resolve(null);
-  }
-
-  // Find transaction by ID
-  const transaction = transactionStore.get(data.where.id);
-  if (!transaction) {
-    return Promise.resolve(null);
-  }
-
-  // If organizationId is specified, check if it matches
-  if (data.where.organizationId && transaction.organizationId !== data.where.organizationId) {
-    return Promise.resolve(null);
-  }
-
-  return Promise.resolve(transaction);
-});
-
-prismaTestClient.transaction.update.mockImplementation(async (data: any) => {
-  // Find the transaction
-  const transaction = transactionStore.get(data.where.id);
-  if (!transaction) {
-    throw new AppError('Transaction not found', 404);
-  }
-
-  // If organizationId is specified, check if it matches
-  if (data.where.organizationId && transaction.organizationId !== data.where.organizationId) {
-    throw new AppError('Not authorized to update this transaction', 403);
-  }
-
-  // Update the transaction
-  const updatedTransaction = {
-    ...transaction,
-    ...data.data,
-    updatedAt: new Date(),
-  };
-  transactionStore.set(transaction.id, updatedTransaction);
-
-  return Promise.resolve(updatedTransaction);
-});
-
-prismaTestClient.transaction.findMany.mockImplementation((data: any) => {
-  // Convert transactions store to array
-  const transactions = Array.from(transactionStore.values());
-  
-  // Filter by organizationId if specified
-  let filtered = transactions;
-  if (data.where?.organizationId) {
-    filtered = filtered.filter(t => t.organizationId === data.where.organizationId);
-  }
-
-  // Filter by date range if specified
-  if (data.where?.createdAt?.gte && data.where?.createdAt?.lte) {
-    filtered = filtered.filter(t => {
-      return t.createdAt >= data.where.createdAt.gte && t.createdAt <= data.where.createdAt.lte;
-    });
-  }
-
-  // Sort if specified
-  if (data.orderBy) {
-    const [field, order] = Object.entries(data.orderBy)[0];
-    filtered.sort((a: any, b: any) => {
-      if (order === 'desc') {
-        return b[field] - a[field];
-      }
-      return a[field] - b[field];
-    });
-  }
-
-  // Apply pagination
-  const skip = data.skip || 0;
-  const take = data.take || filtered.length;
-  const paginatedResults = filtered.slice(skip, skip + take);
-
-  return Promise.resolve(paginatedResults);
-});
-
-prismaTestClient.transaction.count.mockImplementation((data: any) => {
-  // Convert transactions store to array
-  const transactions = Array.from(transactionStore.values());
-  
-  // Filter by organizationId if specified
-  let count = transactions.length;
-  if (data.where?.organizationId) {
-    count = transactions.filter(t => t.organizationId === data.where.organizationId).length;
-  }
-
-  // Filter by date range if specified
-  if (data.where?.createdAt?.gte && data.where?.createdAt?.lte) {
-    count = transactions.filter(t => {
-      return t.createdAt >= data.where.createdAt.gte && t.createdAt <= data.where.createdAt.lte;
-    }).length;
-  }
-
-  return Promise.resolve(count);
-});
-
-prismaTestClient.transaction.aggregate.mockImplementation((data: any) => {
-  // Convert transactions store to array
-  const transactions = Array.from(transactionStore.values());
-  
-  // Filter by organizationId if specified
-  let filtered = transactions;
-  if (data.where?.organizationId) {
-    filtered = filtered.filter(t => t.organizationId === data.where.organizationId);
-  }
-
-  // Filter by date range if specified
-  if (data.where?.createdAt?.gte && data.where?.createdAt?.lte) {
-    filtered = filtered.filter(t => {
-      return t.createdAt >= data.where.createdAt.gte && t.createdAt <= data.where.createdAt.lte;
-    });
-  }
-
-  // Calculate aggregations
-  const totalDonations = filtered.reduce((sum, t) => sum + t.donationAmount.toNumber(), 0);
-  const avgDonation = filtered.length > 0 ? totalDonations / filtered.length : 0;
-
-  return Promise.resolve({
-    _count: { id: filtered.length },
-    _sum: { 
-      donationAmount: new Prisma.Decimal(totalDonations.toFixed(2)),
-      originalAmount: new Prisma.Decimal(filtered.reduce((sum, t) => sum + t.originalAmount.toNumber(), 0).toFixed(2))
-    },
-    _avg: {
-      donationAmount: new Prisma.Decimal(avgDonation.toFixed(2))
+prismaTestClient.transaction.findFirst.mockImplementation(((args: Prisma.TransactionFindFirstArgs) => {
+  // Simplified: find first matching transaction in store
+  // Ignores complex where clauses, orderBy, etc. for now
+  for (const transaction of transactionStore.values()) {
+    let match = true;
+    if (args.where) {
+      if (args.where.id && transaction.id !== args.where.id) match = false;
+      if (args.where.organizationId && transaction.organizationId !== args.where.organizationId) match = false;
+      // Add other simple where conditions if needed
     }
-  });
-});
+    if (match) return Promise.resolve(transaction);
+  }
+  return Promise.resolve(null);
+}) as any);
+
+prismaTestClient.transaction.findUnique.mockImplementation(((args: Prisma.TransactionFindUniqueArgs) => {
+  // Check if id exists before getting from store
+  const transaction = args.where.id ? transactionStore.get(args.where.id) : undefined;
+  return Promise.resolve(transaction ?? null);
+}) as any);
+
+prismaTestClient.transaction.update.mockImplementation(((args: Prisma.TransactionUpdateArgs) => {
+  if (!args.where?.id) {
+    throw new Error('Update requires an ID in the where clause');
+  }
+  const transaction = transactionStore.get(args.where.id);
+  if (!transaction) {
+     // Mimic Prisma P2025
+     throw new Prisma.PrismaClientKnownRequestError(
+        'An operation failed because it depends on one or more records that were required but not found. {cause}',
+        { code: 'P2025', clientVersion: 'mock' }
+     );
+  }
+
+  const updatedData = args.data as Partial<Transaction>; 
+  // Ensure metadata adheres to JsonValue
+  const newMetadata = updatedData.metadata !== undefined ? updatedData.metadata : transaction.metadata;
+  const safeNewMetadata = JSON.parse(JSON.stringify(newMetadata));
+
+  const updatedTransaction: Transaction = { 
+    ...transaction, 
+    ...updatedData, 
+    originalAmount: updatedData.originalAmount ? new Prisma.Decimal(updatedData.originalAmount.toString()) : transaction.originalAmount,
+    roundedAmount: updatedData.roundedAmount ? new Prisma.Decimal(updatedData.roundedAmount.toString()) : transaction.roundedAmount,
+    donationAmount: updatedData.donationAmount ? new Prisma.Decimal(updatedData.donationAmount.toString()) : transaction.donationAmount,
+    metadata: safeNewMetadata, // Use sanitized metadata
+    updatedAt: new Date() 
+  };
+
+  transactionStore.set(updatedTransaction.id, updatedTransaction);
+  return Promise.resolve(updatedTransaction);
+}) as any);
+
+prismaTestClient.transaction.findMany.mockImplementation(((args?: Prisma.TransactionFindManyArgs) => {
+  // Basic implementation: return all transactions from store
+  // Needs refinement for where, pagination, sorting
+  let transactions = Array.from(transactionStore.values());
+  // TODO: Implement filtering, sorting, pagination
+  return Promise.resolve(transactions);
+}) as any);
+
+prismaTestClient.transaction.count.mockImplementation(((args?: Prisma.TransactionCountArgs) => {
+    // Basic implementation based on store size / filtering
+    // TODO: Implement filtering based on args.where
+    return Promise.resolve(transactionStore.size);
+}) as any);
+
+prismaTestClient.transaction.aggregate.mockImplementation(((args: Prisma.TransactionAggregateArgs) => {
+    // Basic mock for aggregation - sums donationAmount
+    // TODO: Implement filtering based on args.where
+    let totalDonations = new Prisma.Decimal(0);
+    let count = 0;
+    for (const tx of transactionStore.values()) {
+        // Add where clause filtering here if needed
+        totalDonations = totalDonations.plus(tx.donationAmount);
+        count++;
+    }
+    const avg = count > 0 ? totalDonations.dividedBy(new Prisma.Decimal(count)) : new Prisma.Decimal(0);
+
+    // Structure depends on what fields are requested in args (_sum, _count, _avg)
+    return Promise.resolve({
+        _sum: { donationAmount: totalDonations },
+        _count: { _all: count },
+        _avg: { donationAmount: avg }
+        // Add other aggregates (_min, _max) if needed
+    });
+}) as any);
 
 prismaTestClient.transaction.deleteMany.mockImplementation(() => {
   transactionStore.clear();
