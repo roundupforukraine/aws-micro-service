@@ -1,10 +1,10 @@
 {
   "name": "ukraine-roundup-api",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "API service for Ukraine round-up donations",
   "main": "dist/index.js",
   "scripts": {
-    "prepare": "chmod +x .git/hooks/pre-push",
+    "prepare": "if [ -f .git/hooks/pre-push ]; then chmod +x .git/hooks/pre-push; fi",
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
@@ -13,7 +13,7 @@
     "test:teardown": "echo 'Cleaning up test environment...'",
     "test:unit": "jest src/tests/unit",
     "test:integration": "npm run test:setup && jest src/tests/integration && npm run test:teardown",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --coverageReporters=lcov --coverageDirectory=./coverage",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
