@@ -151,10 +151,12 @@ prismaTestClient.organization.update.mockImplementation(((args: Prisma.Organizat
 }) as any);
 
 prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.OrganizationFindManyArgs) => {
-  let orgs = Array.from(organizationStore.values());
+  // Use a Set to deduplicate organizations by ID
+  const uniqueOrgs = Array.from(new Set(Array.from(organizationStore.values()).map(org => org.id)))
+    .map(id => organizationStore.get(id))
+    .filter((org): org is Organization => org !== undefined);
 
-  // Apply Authorization Filter (example: only return non-admins if not requested by admin?)
-  // This depends on how authorization should work for list - assuming controller handles it for now.
+  let orgs = uniqueOrgs;
 
   // Apply Where Clause Filtering
   if (args?.where) {
@@ -170,7 +172,6 @@ prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.Organi
         if (args.where?.isAdmin !== undefined && org.isAdmin !== args.where.isAdmin) {
             match = false;
         }
-        // ... etc.
         return match;
     });
   }
@@ -198,17 +199,6 @@ prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.Organi
   const take = args?.take ?? totalCount; // Use totalCount for default take
   const paginatedOrgs = orgs.slice(skip, skip + take);
 
-  // Add count mock dependency here for pagination total
-  // This assumes a separate prismaClient.organization.count mock exists or 
-  // we calculate the total based on the filtered list before pagination.
-  // We'll use the calculated totalCount here.
-
-  // The controller expects `organizations` and `pagination` properties
-  // The mock should return the data in the structure the actual Prisma call would,
-  // but since we are mocking the entire call, we just return the array.
-  // The controller's assembly of the final response (with pagination object) is tested separately.
-  // However, to make the integration test pass, we might need count mock too.
-  // For now, just return the filtered, sorted, paginated list.
   return Promise.resolve(paginatedOrgs); 
 }) as any);
 
