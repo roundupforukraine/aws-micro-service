@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2024-04-09
+
+### Added
+- Comprehensive API test script with error handling and cross-organization access tests
+- HTTP request collection for API testing
+- Improved test coverage reporting with lcov format
+
+### Changed
+- Updated test coverage script to generate lcov.info file for Codecov
+- Enhanced GitHub Actions workflow for better CI/CD integration
+
+### Fixed
+- Fixed prepare script in package.json to handle missing pre-push hook in CI environment
+- Resolved ESLint deprecation warnings
+
 ## [1.1.0] - 2024-04-09
 
 ### Added
