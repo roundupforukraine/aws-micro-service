@@ -13,7 +13,7 @@
     "test:teardown": "echo 'Cleaning up test environment...'",
     "test:unit": "jest src/tests/unit",
     "test:integration": "npm run test:setup && jest src/tests/integration && npm run test:teardown",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --coverageReporters=lcov --coverageDirectory=./coverage",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
