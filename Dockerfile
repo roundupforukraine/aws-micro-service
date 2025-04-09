@@ -3,6 +3,9 @@ FROM node:18-alpine as builder
 
 WORKDIR /app
 
+# Install OpenSSL and other dependencies
+RUN apk add --no-cache openssl openssl-dev curl
+
 # Copy package files
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -24,6 +27,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
+# Install OpenSSL and other dependencies
+RUN apk add --no-cache openssl openssl-dev curl
+
 # Copy package files and install production dependencies
 COPY package*.json ./
 COPY prisma ./prisma/
@@ -35,9 +41,14 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Set environment variables
 ENV NODE_ENV=production
+ENV PORT=3000
 
 # Expose port
 EXPOSE 3000
+
+# Add healthcheck
+HEALTHCHECK --interval=30s --timeout=3s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
 
 # Start the application
 CMD ["npm", "start"] 

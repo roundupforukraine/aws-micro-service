@@ -1,5 +1,7 @@
 # Ukraine Round-Up API Service
 
+> **Disclaimer**: This entire project was created using "vibe coding" with the assistance of Claude Pro (Anthropic's AI assistant). No code was written directly by the author - all code was generated through interaction with this AI tool. The author's role was limited to providing requirements and guidance, while Claude Pro handled the actual implementation. The AWS deployment was also fully automated and tested in a real environment, with all infrastructure components (ECS, RDS, VPC, etc.) being created and configured through AI-generated scripts.
+
 [![Tests](https://github.com/roundupforukraine/aws-micro-service/actions/workflows/test.yml/badge.svg)](https://github.com/roundupforukraine/aws-micro-service/actions/workflows/test.yml)
 [![Code Coverage](https://codecov.io/gh/roundupforukraine/aws-micro-service/branch/develop/graph/badge.svg)](https://app.codecov.io/gh/roundupforukraine/aws-micro-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -202,6 +204,106 @@ There are two types of organizations in the system:
 - Admin organizations can access all data and filter by organization
 - Invalid or missing API keys result in 401 Unauthorized responses
 - Unauthorized access attempts result in 403 Forbidden responses
+
+## AWS Deployment Guide
+
+### Prerequisites for AWS Deployment
+
+1. AWS CLI installed and configured
+2. Docker installed
+3. Node.js v18 or higher
+4. AWS Account with necessary permissions:
+   - ECS (Elastic Container Service)
+   - ECR (Elastic Container Registry)
+   - RDS (Relational Database Service)
+   - VPC and Security Groups
+   - Application Load Balancer
+   - IAM roles and policies
+
+### Deployment Steps
+
+1. Clone the repository and install dependencies:
+   ```bash
+   git clone <repository-url>
+   cd aws-micro-service
+   npm install
+   ```
+
+2. Create AWS credentials file:
+   ```bash
+   cp scripts/load-aws-credentials.template.js scripts/load-aws-credentials.js
+   ```
+
+3. Update the credentials file with your AWS credentials and API information:
+   ```javascript
+   // scripts/load-aws-credentials.js
+   module.exports = {
+     aws: {
+       region: 'your-region',
+       credentials: {
+         accessKeyId: 'your-access-key',
+         secretAccessKey: 'your-secret-key'
+       }
+     },
+     api: {
+       baseUrl: 'your-load-balancer-url',
+       adminApiKey: 'your-admin-api-key'
+     }
+   };
+   ```
+
+4. Make deployment scripts executable:
+   ```bash
+   chmod +x scripts/test-api-sequence-aws.sh
+   chmod +x scripts/update-task-definition.sh
+   chmod +x scripts/generate-infrastructure-config.sh
+   ```
+
+5. Generate infrastructure configuration:
+   ```bash
+   ./scripts/generate-infrastructure-config.sh
+   ```
+   This will create the necessary AWS infrastructure configuration files.
+
+6. Generate task definition:
+   ```bash
+   node scripts/generate-task-definition.js
+   ```
+   This will create the ECS task definition file.
+
+7. Update the task definition:
+   ```bash
+   ./scripts/update-task-definition.sh
+   ```
+   This will update the ECS task definition with the latest configuration.
+
+8. Test the deployment:
+   ```bash
+   ./scripts/test-api-sequence-aws.sh
+   ```
+   This will run a sequence of API tests to verify the deployment.
+
+### Monitoring and Maintenance
+
+- View logs in CloudWatch Logs
+- Monitor metrics in CloudWatch Metrics
+- Check service health in ECS console
+- Monitor database performance in RDS console
+
+### Testing the API
+
+The project includes a comprehensive API test sequence that can be run against the deployed environment:
+
+```bash
+./scripts/test-api-sequence-aws.sh
+```
+
+This script will:
+- Test organization registration and management
+- Test transaction creation and retrieval
+- Test admin operations
+- Test error cases and validation
+- Clean up test data after completion
 
 ## API Testing
 
