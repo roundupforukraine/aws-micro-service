@@ -38,7 +38,7 @@ jest.mock('@prisma/client', () => {
 });
 
 // Export types for use in tests
-export { Organization, Transaction };
+// export { Organization, Transaction };
 
 type DeepMockProxy<T> = {
   [K in keyof T]: T[K] extends (...args: any[]) => any
@@ -50,6 +50,7 @@ type DeepMockProxy<T> = {
 
 // Store for test data
 const organizationStore = new Map<string, Organization>();
+let orgCounter = 0;
 const transactionStore = new Map<string, Transaction>();
 
 // Create a type-safe mock client
@@ -77,178 +78,111 @@ export const prismaTestClient = {
 } as unknown as DeepMockProxy<PrismaClient>;
 
 // Initialize mock implementations
-prismaTestClient.organization.create.mockImplementation((data: any) => {
-  const org = {
-    id: data.data.isAdmin ? 'admin-org-id' : '1fc7e4e8-1258-495b-9fd0-44c45a5e17c7',
-    name: data.data.name,
-    apiKey: data.data.isAdmin ? 'test-admin-key' : 'test-api-key',
-    isAdmin: data.data.isAdmin ?? false,
+prismaTestClient.organization.create.mockImplementation(((args: Prisma.OrganizationCreateArgs) => {
+  const orgId = args.data.isAdmin ? 'admin-org-id' : `test-org-${++orgCounter}`;
+  const apiKey = args.data.apiKey ?? (args.data.isAdmin ? 'test-admin-key' : `test-api-key-${orgCounter}`);
+  
+  const org: Organization = {
+    id: orgId,
+    name: args.data.name ?? 'Test Organization',
+    apiKey: apiKey,
+    isAdmin: args.data.isAdmin ?? false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
+  organizationStore.set(org.id, org);
+  organizationStore.set(org.apiKey, org); // Store by apiKey too for lookup
   return Promise.resolve(org);
-});
+}) as any);
 
-prismaTestClient.organization.findUnique.mockImplementation((data: any) => {
-  // Handle admin organization lookup by API key
-  if (data.where.apiKey === 'test-admin-key') {
-    return Promise.resolve({
-      id: 'admin-org-id',
-      name: 'Admin Organization',
-      apiKey: 'test-admin-key',
-      isAdmin: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
+prismaTestClient.organization.findUnique.mockImplementation(((args: Prisma.OrganizationFindUniqueArgs) => {
+  let org: Organization | undefined;
+  if (args.where.id) {
+    org = organizationStore.get(args.where.id);
+  } else if (args.where.apiKey) {
+    org = organizationStore.get(args.where.apiKey);
   }
   
-  // Handle test organization lookup by API key
-  if (data.where.apiKey === 'test-api-key') {
-    return Promise.resolve({
-      id: '1fc7e4e8-1258-495b-9fd0-44c45a5e17c7',
-      name: 'Test Org for GET',
-      apiKey: 'test-api-key',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-
-  // Handle other organization lookup by API key
-  if (data.where.apiKey === 'other-api-key') {
-    return Promise.resolve({
-      id: 'other-org-id',
-      name: 'Other Organization',
-      apiKey: 'other-api-key',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-  
-  // Handle test organization lookup by ID
-  if (data.where.id === '1fc7e4e8-1258-495b-9fd0-44c45a5e17c7') {
-    return Promise.resolve({
-      id: '1fc7e4e8-1258-495b-9fd0-44c45a5e17c7',
-      name: 'Test Org for GET',
-      apiKey: 'test-api-key',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-
-  // Handle admin organization lookup by ID
-  if (data.where.id === 'admin-org-id') {
-    return Promise.resolve({
-      id: 'admin-org-id',
-      name: 'Admin Organization',
-      apiKey: 'test-admin-key',
-      isAdmin: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-
-  // Handle test organization lookup by ID for update tests
-  if (data.where.id === 'test-id') {
-    return Promise.resolve({
-      id: 'test-id',
-      name: 'Test Organization',
-      apiKey: 'test-api-key',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-
-  // Handle other organization lookup by ID
-  if (data.where.id === 'other-org-id') {
-    return Promise.resolve({
-      id: 'other-org-id',
-      name: 'Other Organization',
-      apiKey: 'other-api-key',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  }
-
-  // Handle invalid API key
-  if (data.where.apiKey === 'invalid-api-key') {
+  // Preserve original behavior for specific test keys/IDs if needed, otherwise rely on store
+  if (!org && args.where.apiKey === 'invalid-api-key') {
     return Promise.resolve(null);
   }
+  if (!org && args.where.id === 'non-existent-id') {
+      return Promise.resolve(null);
+  }
   
-  return Promise.resolve(null);
-});
+  return Promise.resolve(org ?? null);
+}) as any);
 
-prismaTestClient.organization.update.mockImplementation((data: any) => {
-  // Check if organization exists and belongs to the requesting organization
-  const org = prismaTestClient.organization.findUnique({ where: { id: data.where.id } }) as Promise<Organization>;
+prismaTestClient.organization.update.mockImplementation(((args: Prisma.OrganizationUpdateArgs) => {
+  if (!args.where?.id) {
+    throw new Error('Update requires an ID in the where clause');
+  }
+  const org = organizationStore.get(args.where.id);
   if (!org) {
-    throw new AppError('Organization not found', 404);
+    throw new Error('Organization not found');
   }
 
-  // If not admin and trying to update another organization
-  if (data.where.organizationId && data.where.organizationId !== (org as any).id) {
-    throw new AppError('Not authorized to update this organization', 403);
+  // Apply updates - Simplified
+  let updatedData: Partial<Organization> = {};
+  if (typeof args.data === 'function') {
+     // Note: Handling the function update case is complex, providing a basic structure
+     // const resolvedData = args.data(org); // Prisma types might be more specific
+     // updatedData = resolvedData as Partial<Organization>;
+     console.warn('Function update in mock not fully implemented'); 
+     updatedData = {}; // Placeholder
+  } else {
+     updatedData = args.data as Partial<Organization>; // Assume it's a partial object
   }
 
-  return Promise.resolve({
-    id: data.where.id,
-    name: data.data.name,
-    apiKey: 'test-api-key',
-    isAdmin: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
-});
+  const updatedOrg = { 
+    ...org, 
+    ...updatedData,
+    updatedAt: new Date() 
+  };
 
-prismaTestClient.organization.findMany.mockImplementation((data: any) => {
-  // Check if requester is admin
-  const requester = prismaTestClient.organization.findUnique({ 
-    where: { apiKey: data.where?.apiKey } 
-  }) as Promise<Organization>;
-  
-  if (!(requester as any)?.isAdmin) {
-    throw new AppError('Not authorized to list organizations', 403);
+  organizationStore.set(updatedOrg.id, updatedOrg);
+  if (updatedOrg.apiKey !== org.apiKey && updatedOrg.apiKey) { // Update apiKey index if changed
+      if (org.apiKey) organizationStore.delete(org.apiKey);
+      organizationStore.set(updatedOrg.apiKey, updatedOrg);
   }
 
-  // If there's a search filter, return filtered results
-  if (data.where?.name?.contains) {
-    const searchTerm = data.where.name.contains;
-    if (searchTerm === 'Test Org 1') {
-      return Promise.resolve([{
-        id: '1',
-        name: 'Test Org 1',
-        apiKey: 'test-api-key-1',
-        isAdmin: false,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }]);
+  return Promise.resolve(updatedOrg);
+}) as any);
+
+prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.OrganizationFindManyArgs) => {
+  let orgs = Array.from(organizationStore.values());
+
+  // Filtering (simplified example)
+  if (args?.where?.name && typeof args.where.name === 'object' && 'contains' in args.where.name && args.where.name.contains !== undefined) {
+    // Assuming contains is a string for mock purposes
+    const searchTerm = (args.where.name.contains as string).toLowerCase(); 
+    orgs = orgs.filter(o => o.name.toLowerCase().includes(searchTerm));
+  }
+
+  // Sorting (simplified example - handles single object orderBY)
+  if (args?.orderBy && !Array.isArray(args.orderBy)) {
+    const sortKey = Object.keys(args.orderBy)[0] as keyof Organization;
+    if (sortKey in orgs[0]) { // Basic check if key exists
+        const sortOrder = (args.orderBy as any)[sortKey] === 'desc' ? -1 : 1;
+        orgs.sort((a, b) => {
+            // Basic sort, might need refinement for different types
+            const valA = a[sortKey];
+            const valB = b[sortKey];
+            if (valA < valB) return -1 * sortOrder;
+            if (valA > valB) return 1 * sortOrder;
+            return 0;
+        });
     }
   }
 
-  // Default response with multiple organizations for sorting tests
-  return Promise.resolve([
-    {
-      id: '1',
-      name: 'Test Org 1',
-      apiKey: 'test-api-key-1',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    },
-    {
-      id: '2',
-      name: 'Test Org 2',
-      apiKey: 'test-api-key-2',
-      isAdmin: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-  ]);
-});
+  // Pagination
+  const skip = args?.skip ?? 0;
+  const take = args?.take ?? orgs.length;
+  orgs = orgs.slice(skip, skip + take);
+
+  return Promise.resolve(orgs);
+}) as any);
 
 prismaTestClient.transaction.create.mockImplementation((data: any) => {
   const transaction = {
@@ -414,37 +348,40 @@ export const createAdminOrg = async () => {
 
 // Setup function to create initial test data
 export const setup = async () => {
-  // Clear any existing data
-  await prismaTestClient.transaction.deleteMany();
-  await prismaTestClient.organization.deleteMany();
-
-  // Create admin organization
-  await prismaTestClient.organization.create({
-    data: {
-      name: 'Admin Organization',
-      apiKey: 'test-admin-key',
-      isAdmin: true,
-    },
-  });
-
-  // Create test organization
-  await prismaTestClient.organization.create({
-    data: {
-      name: 'Test Organization',
-      isAdmin: false,
-    },
-  });
+  await prismaTestClient.$connect();
+  // Optional: Reset stores before each test run if needed
+  resetOrganizationCount();
+  transactionStore.clear(); 
 };
 
 // Teardown function for tests
 export const teardown = async () => {
-  await prismaTestClient.organization.deleteMany();
-  await prismaTestClient.transaction.deleteMany();
   await prismaTestClient.$disconnect();
 };
 
 // Add resetOrganizationCount function
 export const resetOrganizationCount = () => {
-  prismaTestClient.organization.count.mockReset();
-  prismaTestClient.organization.count.mockImplementation(() => Promise.resolve(0));
-}; 
+  orgCounter = 0;
+  organizationStore.clear();
+  // Add admin org back if needed for all tests
+  const adminOrg: Organization = {
+    id: 'admin-org-id',
+    name: 'Admin Organization',
+    apiKey: 'test-admin-key',
+    isAdmin: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  organizationStore.set(adminOrg.id, adminOrg);
+  organizationStore.set(adminOrg.apiKey, adminOrg);
+};
+
+// REMOVED redundant export block
+// export {
+//   setup,
+//   teardown,
+//   prismaTestClient,
+//   Organization,
+//   Transaction,
+//   resetOrganizationCount
+// }; 
