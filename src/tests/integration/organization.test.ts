@@ -87,18 +87,6 @@ describe('Organization API', () => {
   });
 
   describe('GET /api/organizations/:id', () => {
-    let testOrg: Organization;
-
-    beforeAll(async () => {
-      testOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Test Org for GET',
-          apiKey: 'test-api-key-' + Date.now(),
-          isAdmin: false,
-        },
-      }) as Organization;
-    });
-
     it('should return organization details when accessed by admin', async () => {
       const response = await request(app)
         .get(`/api/organizations/${testOrg.id}`)
@@ -107,7 +95,7 @@ describe('Organization API', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.organization).toHaveProperty('id', testOrg.id);
-      expect(response.body.data.organization).toHaveProperty('name', 'Test Org for GET');
+      expect(response.body.data.organization).toHaveProperty('name', 'Test Organization');
     });
 
     it('should return organization details when accessed by own organization', async () => {
@@ -118,7 +106,7 @@ describe('Organization API', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.organization).toHaveProperty('id', testOrg.id);
-      expect(response.body.data.organization).toHaveProperty('name', 'Test Org for GET');
+      expect(response.body.data.organization).toHaveProperty('name', 'Test Organization');
     });
 
     it('should return 403 when accessed by different organization', async () => {
@@ -162,18 +150,6 @@ describe('Organization API', () => {
   });
 
   describe('PUT /api/organizations/:id', () => {
-    let testOrg: Organization;
-
-    beforeAll(async () => {
-      testOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Test Org for PUT',
-          apiKey: 'test-api-key-' + Date.now(),
-          isAdmin: false,
-        },
-      }) as Organization;
-    });
-
     it('should update organization details when called by admin', async () => {
       const response = await request(app)
         .put(`/api/organizations/${testOrg.id}`)
