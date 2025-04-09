@@ -9,10 +9,6 @@ describe('Organization API', () => {
   let adminOrg: Organization;
   let otherOrg: Organization;
 
-  beforeEach(() => {
-    resetOrganizationCount();
-  });
-
   beforeAll(async () => {
     await prismaTestClient.$connect();
     adminApiKey = 'test-admin-key';
