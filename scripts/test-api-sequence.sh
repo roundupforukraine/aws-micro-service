@@ -3,6 +3,7 @@
 # Set the base URL
 BASE_URL="http://localhost:3000"
 ADMIN_API_KEY="admin-key-1234567890abcdef"
+INVALID_API_KEY="invalid-key-123"
 
 # Function to make API calls and print results
 call_api() {
@@ -59,8 +60,27 @@ ORG2_API_KEY=$org_api_key
 echo "ORG2_ID: $ORG2_ID"
 echo "ORG2_API_KEY: $ORG2_API_KEY"
 
-# Step 2: Create 25 transactions for Organization 1
-echo "Step 2: Create 25 transactions for Organization 1"
+# Step 2: Test error cases for organization registration
+echo "Step 2: Test error cases for organization registration"
+call_api "POST" "/api/organizations/register" "$INVALID_API_KEY" '{"name": "Invalid Org"}'
+call_api "POST" "/api/organizations/register" "$ORG1_API_KEY" '{"name": "Unauthorized Org"}'
+call_api "POST" "/api/organizations/register" "$ADMIN_API_KEY" '{}'
+
+# Step 3: Test organization details retrieval
+echo "Step 3: Test organization details retrieval"
+call_api "GET" "/api/organizations/$ORG1_ID" "$ORG1_API_KEY"
+call_api "GET" "/api/organizations/$ORG1_ID" "$ADMIN_API_KEY"
+call_api "GET" "/api/organizations/$ORG2_ID" "$ORG1_API_KEY" # Should fail
+call_api "GET" "/api/organizations/invalid-id" "$ADMIN_API_KEY"
+
+# Step 4: Test organization listing with pagination and search
+echo "Step 4: Test organization listing with pagination and search"
+call_api "GET" "/api/organizations?page=1&limit=10" "$ADMIN_API_KEY"
+call_api "GET" "/api/organizations?search=Organization&sortBy=name&sortOrder=desc" "$ADMIN_API_KEY"
+call_api "GET" "/api/organizations" "$ORG1_API_KEY" # Should fail - not admin
+
+# Step 5: Create transactions for Organization 1
+echo "Step 5: Create transactions for Organization 1"
 for i in {1..25}; do
   amount=$(echo "scale=2; $RANDOM/1000 + 10" | bc)
   call_api "POST" "/api/transactions" "$ORG1_API_KEY" "{\"originalAmount\": \"$amount\", \"organizationId\": \"$ORG1_ID\", \"metadata\": {\"description\": \"Transaction $i for Org 1\"}}"
@@ -71,8 +91,8 @@ for i in {1..25}; do
   sleep 0.1
 done
 
-# Step 3: Create 25 transactions for Organization 2
-echo "Step 3: Create 25 transactions for Organization 2"
+# Step 6: Create transactions for Organization 2
+echo "Step 6: Create transactions for Organization 2"
 for i in {1..25}; do
   amount=$(echo "scale=2; $RANDOM/1000 + 10" | bc)
   call_api "POST" "/api/transactions" "$ORG2_API_KEY" "{\"originalAmount\": \"$amount\", \"organizationId\": \"$ORG2_ID\", \"metadata\": {\"description\": \"Transaction $i for Org 2\"}}"
@@ -83,68 +103,62 @@ for i in {1..25}; do
   sleep 0.1
 done
 
-# Step 4: Update Organization 1
-echo "Step 4: Update Organization 1"
+# Step 7: Test transaction details retrieval
+echo "Step 7: Test transaction details retrieval"
+call_api "GET" "/api/transactions/$TRANSACTION1_ID" "$ORG1_API_KEY"
+call_api "GET" "/api/transactions/$TRANSACTION1_ID" "$ADMIN_API_KEY"
+call_api "GET" "/api/transactions/$TRANSACTION1_ID" "$ORG2_API_KEY" # Should fail
+call_api "GET" "/api/transactions/invalid-id" "$ADMIN_API_KEY"
+
+# Step 8: Test transaction listing with pagination, sorting, and date filtering
+echo "Step 8: Test transaction listing with pagination, sorting, and date filtering"
+TODAY=$(date +%Y-%m-%d)
+call_api "GET" "/api/transactions?page=1&limit=10&sortBy=originalAmount&sortOrder=desc" "$ORG1_API_KEY"
+call_api "GET" "/api/transactions?startDate=${TODAY}T00:00:00Z&endDate=${TODAY}T23:59:59Z" "$ORG1_API_KEY"
+call_api "GET" "/api/transactions?organizationId=$ORG2_ID" "$ORG1_API_KEY" # Should fail
+
+# Step 9: Update organizations
+echo "Step 9: Update organizations"
 call_api "PUT" "/api/organizations/$ORG1_ID" "$ORG1_API_KEY" "{\"name\": \"Updated Organization 1\", \"description\": \"This organization has been updated\"}"
-
-# Step 5: Update Organization 2
-echo "Step 5: Update Organization 2"
 call_api "PUT" "/api/organizations/$ORG2_ID" "$ORG2_API_KEY" "{\"name\": \"Updated Organization 2\", \"description\": \"This organization has been updated\"}"
+call_api "PUT" "/api/organizations/$ORG2_ID" "$ORG1_API_KEY" "{\"name\": \"Unauthorized Update\"}" # Should fail
+call_api "PUT" "/api/organizations/invalid-id" "$ADMIN_API_KEY" "{\"name\": \"Invalid Update\"}"
 
-# Step 6: Update Transaction 1 for Organization 1
-echo "Step 6: Update Transaction 1 for Organization 1"
+# Step 10: Update transactions
+echo "Step 10: Update transactions"
 call_api "PUT" "/api/transactions/$TRANSACTION1_ID" "$ORG1_API_KEY" "{\"metadata\": {\"description\": \"Updated Transaction 1 for Org 1\", \"updated\": true}}"
-
-# Step 7: Update Transaction 1 for Organization 2
-echo "Step 7: Update Transaction 1 for Organization 2"
 call_api "PUT" "/api/transactions/$TRANSACTION2_ID" "$ORG2_API_KEY" "{\"metadata\": {\"description\": \"Updated Transaction 1 for Org 2\", \"updated\": true}}"
+call_api "PUT" "/api/transactions/$TRANSACTION2_ID" "$ORG1_API_KEY" "{\"metadata\": {\"description\": \"Unauthorized Update\"}}" # Should fail
+call_api "PUT" "/api/transactions/invalid-id" "$ADMIN_API_KEY" "{\"metadata\": {\"description\": \"Invalid Update\"}}"
 
-# Step 8: Get all transactions for Organization 1
-echo "Step 8: Get all transactions for Organization 1"
-call_api "GET" "/api/transactions?organizationId=$ORG1_ID" "$ORG1_API_KEY"
-
-# Step 9: Get all transactions for Organization 2
-echo "Step 9: Get all transactions for Organization 2"
-call_api "GET" "/api/transactions?organizationId=$ORG2_ID" "$ORG2_API_KEY"
-
-# Step 10: Get transaction report for Organization 1
-echo "Step 10: Get transaction report for Organization 1"
-call_api "GET" "/api/transactions/report?organizationId=$ORG1_ID" "$ORG1_API_KEY"
-
-# Step 11: Get transaction report for Organization 2
-echo "Step 11: Get transaction report for Organization 2"
-call_api "GET" "/api/transactions/report?organizationId=$ORG2_ID" "$ORG2_API_KEY"
-
-# Step 12: Admin gets all transactions for Organization 1
-echo "Step 12: Admin gets all transactions for Organization 1"
-call_api "GET" "/api/transactions?organizationId=$ORG1_ID" "$ADMIN_API_KEY"
-
-# Step 13: Admin gets all transactions for Organization 2
-echo "Step 13: Admin gets all transactions for Organization 2"
-call_api "GET" "/api/transactions?organizationId=$ORG2_ID" "$ADMIN_API_KEY"
-
-# Step 14: Admin gets transaction report for Organization 1
-echo "Step 14: Admin gets transaction report for Organization 1"
+# Step 11: Get transaction reports with date filtering
+echo "Step 11: Get transaction reports with date filtering"
+call_api "GET" "/api/transactions/report?startDate=${TODAY}T00:00:00Z&endDate=${TODAY}T23:59:59Z" "$ORG1_API_KEY"
 call_api "GET" "/api/transactions/report?organizationId=$ORG1_ID" "$ADMIN_API_KEY"
+call_api "GET" "/api/transactions/report?organizationId=$ORG2_ID" "$ORG1_API_KEY" # Should fail
 
-# Step 15: Admin gets transaction report for Organization 2
-echo "Step 15: Admin gets transaction report for Organization 2"
+# Step 12: Test cross-organization access
+echo "Step 12: Test cross-organization access"
+call_api "GET" "/api/organizations/$ORG2_ID" "$ORG1_API_KEY"
+call_api "PUT" "/api/organizations/$ORG2_ID" "$ORG1_API_KEY" "{\"name\": \"Unauthorized Update\"}"
+call_api "GET" "/api/transactions/$TRANSACTION2_ID" "$ORG1_API_KEY"
+call_api "PUT" "/api/transactions/$TRANSACTION2_ID" "$ORG1_API_KEY" "{\"metadata\": {\"description\": \"Unauthorized Update\"}}"
+
+# Step 13: Admin operations
+echo "Step 13: Admin operations"
+call_api "GET" "/api/organizations" "$ADMIN_API_KEY"
+call_api "GET" "/api/transactions?organizationId=$ORG1_ID" "$ADMIN_API_KEY"
 call_api "GET" "/api/transactions/report?organizationId=$ORG2_ID" "$ADMIN_API_KEY"
 
-# Step 16: Admin deletes Organization 1
-echo "Step 16: Admin deletes Organization 1"
+# Step 14: Cleanup
+echo "Step 14: Cleanup"
 call_api "DELETE" "/api/organizations/$ORG1_ID" "$ADMIN_API_KEY"
-
-# Step 17: Admin deletes Organization 2
-echo "Step 17: Admin deletes Organization 2"
 call_api "DELETE" "/api/organizations/$ORG2_ID" "$ADMIN_API_KEY"
-
-# Step 18: Admin deletes Transaction 1
-echo "Step 18: Admin deletes Transaction 1"
 call_api "DELETE" "/api/transactions/$TRANSACTION1_ID" "$ADMIN_API_KEY"
-
-# Step 19: Admin deletes Transaction 2
-echo "Step 19: Admin deletes Transaction 2"
 call_api "DELETE" "/api/transactions/$TRANSACTION2_ID" "$ADMIN_API_KEY"
+call_api "DELETE" "/api/organizations/invalid-id" "$ADMIN_API_KEY"
+call_api "DELETE" "/api/transactions/invalid-id" "$ADMIN_API_KEY"
+call_api "DELETE" "/api/organizations/$ORG1_ID" "$ORG1_API_KEY" # Should fail - not admin
+call_api "DELETE" "/api/transactions/$TRANSACTION1_ID" "$ORG1_API_KEY" # Should fail - not admin
 
 echo "API sequence completed!" 
