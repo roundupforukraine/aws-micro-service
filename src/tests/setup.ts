@@ -163,7 +163,7 @@ prismaTestClient.organization.findMany.mockImplementation(((args?: Prisma.Organi
   // Sorting (simplified example - handles single object orderBY)
   if (args?.orderBy && !Array.isArray(args.orderBy)) {
     const sortKey = Object.keys(args.orderBy)[0] as keyof Organization;
-    if (sortKey in orgs[0]) { // Basic check if key exists
+    if (orgs.length > 0 && sortKey in orgs[0]) { 
         const sortOrder = (args.orderBy as any)[sortKey] === 'desc' ? -1 : 1;
         orgs.sort((a, b) => {
             // Basic sort, might need refinement for different types
