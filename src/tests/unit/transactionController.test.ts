@@ -44,7 +44,7 @@ describe('Transaction Controller', () => {
         updatedAt: new Date(),
       } as Transaction;
 
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(mockTransaction);
       (prismaTestClient.transaction.update as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         metadata: { description: 'Updated transaction' },
@@ -69,10 +69,25 @@ describe('Transaction Controller', () => {
     });
 
     it('should handle transaction not found', async () => {
-      const mockReq = createMockReq();
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(null);
+      const mockReq = {
+        params: { id: 'non-existent-id' },
+        body: { metadata: { description: 'Updated transaction' } },
+        organization: { id: 'test-org-id', isAdmin: false },
+        get: jest.fn(),
+        header: jest.fn(),
+      } as unknown as Request;
 
-      await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      } as unknown as Response;
+
+      const mockNext = jest.fn();
+
+      // Mock findUnique to return null
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(null);
+
+      await transactionController.updateTransaction(mockReq, mockRes, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
       expect(mockNext.mock.calls[0][0].statusCode).toBe(404);
@@ -80,20 +95,34 @@ describe('Transaction Controller', () => {
     });
 
     it('should handle unauthorized update of another organization\'s transaction', async () => {
-      const mockReq = createMockReq();
-      const differentOrgTransaction = {
-        id: mockTransactionId,
-        organizationId: 'different-org-id',
+      const mockReq = {
+        params: { id: 'test-transaction-id' },
+        body: { metadata: { description: 'Updated transaction' } },
+        organization: { id: 'other-org-id', isAdmin: false },
+        get: jest.fn(),
+        header: jest.fn(),
+      } as unknown as Request;
+
+      const mockRes = {
+        status: jest.fn().mockReturnThis(),
+        json: jest.fn(),
+      } as unknown as Response;
+
+      const mockNext = jest.fn();
+
+      // Mock findUnique to return a transaction owned by a different organization
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce({
+        id: 'test-transaction-id',
+        organizationId: 'test-org-id',
         originalAmount: new Prisma.Decimal('15.75'),
         roundedAmount: new Prisma.Decimal('16.00'),
         donationAmount: new Prisma.Decimal('0.25'),
         metadata: { description: 'Original transaction' },
         createdAt: new Date(),
         updatedAt: new Date(),
-      };
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(differentOrgTransaction);
+      });
 
-      await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
+      await transactionController.updateTransaction(mockReq, mockRes, mockNext);
 
       expect(mockNext).toHaveBeenCalledWith(expect.any(AppError));
       expect(mockNext.mock.calls[0][0].statusCode).toBe(403);
@@ -118,7 +147,7 @@ describe('Transaction Controller', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(existingTransaction);
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(existingTransaction);
 
       await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
 
@@ -143,7 +172,7 @@ describe('Transaction Controller', () => {
         updatedAt: new Date(),
       } as Transaction;
 
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(mockTransaction);
       (prismaTestClient.transaction.update as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         metadata: { description: 'Updated by admin' },

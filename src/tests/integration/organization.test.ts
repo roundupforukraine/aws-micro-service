@@ -9,13 +9,18 @@ describe('Organization API', () => {
   let adminOrg: Organization;
   let otherOrg: Organization;
 
-  beforeEach(() => {
-    resetOrganizationCount();
-  });
-
   beforeAll(async () => {
     await prismaTestClient.$connect();
     adminApiKey = 'test-admin-key';
+
+    // Create an admin organization first
+    adminOrg = await prismaTestClient.organization.create({
+      data: {
+        name: 'Admin Organization',
+        apiKey: adminApiKey, // Use the same admin API key
+        isAdmin: true,
+      },
+    }) as Organization;
 
     // Create a test organization
     const orgResponse = await request(app)
@@ -34,15 +39,6 @@ describe('Organization API', () => {
 
     expect(otherOrgResponse.status).toBe(201);
     otherOrg = otherOrgResponse.body.data.organization;
-
-    // Create an admin organization for testing
-    adminOrg = await prismaTestClient.organization.create({
-      data: {
-        name: 'Admin Organization',
-        apiKey: 'test-api-key-admin',
-        isAdmin: true,
-      },
-    }) as Organization;
   });
 
   afterAll(async () => {
@@ -87,18 +83,6 @@ describe('Organization API', () => {
   });
 
   describe('GET /api/organizations/:id', () => {
-    let testOrg: Organization;
-
-    beforeAll(async () => {
-      testOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Test Org for GET',
-          apiKey: 'test-api-key-' + Date.now(),
-          isAdmin: false,
-        },
-      }) as Organization;
-    });
-
     it('should return organization details when accessed by admin', async () => {
       const response = await request(app)
         .get(`/api/organizations/${testOrg.id}`)
@@ -107,7 +91,7 @@ describe('Organization API', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.organization).toHaveProperty('id', testOrg.id);
-      expect(response.body.data.organization).toHaveProperty('name', 'Test Org for GET');
+      expect(response.body.data.organization).toHaveProperty('name', 'Test Organization');
     });
 
     it('should return organization details when accessed by own organization', async () => {
@@ -118,7 +102,7 @@ describe('Organization API', () => {
       expect(response.status).toBe(200);
       expect(response.body.status).toBe('success');
       expect(response.body.data.organization).toHaveProperty('id', testOrg.id);
-      expect(response.body.data.organization).toHaveProperty('name', 'Test Org for GET');
+      expect(response.body.data.organization).toHaveProperty('name', 'Test Organization');
     });
 
     it('should return 403 when accessed by different organization', async () => {
@@ -162,18 +146,6 @@ describe('Organization API', () => {
   });
 
   describe('PUT /api/organizations/:id', () => {
-    let testOrg: Organization;
-
-    beforeAll(async () => {
-      testOrg = await prismaTestClient.organization.create({
-        data: {
-          name: 'Test Org for PUT',
-          apiKey: 'test-api-key-' + Date.now(),
-          isAdmin: false,
-        },
-      }) as Organization;
-    });
-
     it('should update organization details when called by admin', async () => {
       const response = await request(app)
         .put(`/api/organizations/${testOrg.id}`)
@@ -278,7 +250,7 @@ describe('Organization API', () => {
 
       expect(response.status).toBe(403);
       expect(response.body.status).toBe('fail');
-      expect(response.body.message).toBe('Not authorized to list organizations');
+      expect(response.body.message).toBe('Invalid admin API key');
     });
 
     it('should filter organizations by name', async () => {

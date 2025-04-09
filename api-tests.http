@@ -1,14 +1,17 @@
 ### Environment Variables
 @baseUrl = http://localhost:3000
 @adminApiKey = admin-key-1234567890abcdef
-@org1ApiKey = api-key-3b55d7705aad8e9a08acfaaea4853947
-@org1Id = 552c04bd-c08e-4cfb-acb8-3a68497ece1a
-@org2ApiKey = api-key-f066d2bfb2a903246636d8b6e9a72c16
-@org2Id = 6e437c9c-f350-41cc-b05a-b15bd1ef624c
+@invalidApiKey = invalid-key-123
+@org1ApiKey = b1acc03624c016a7f5bfdf036d58dd95
+@org1Id = 29d28de5-ed62-4789-a512-2329c525d420
+@org2ApiKey = 878bd2e242e02f29d2c107c62c03bf52
+@org2Id = 9c46ed17-bdcc-4e50-bbd5-d9ba4c26e5d7
+@transaction1Id = 2683d37f-63bb-46ec-8f63-2d421bbf5194
+@transaction2Id = 4090ce0c-42d8-409a-9fea-aacdb5637ad5
 
-### Admin Operations ###
+### Step 1: Register two organizations ###
 
-### Admin: Register first organization
+### Register Organization 1
 POST {{baseUrl}}/api/organizations/register
 Content-Type: application/json
 x-api-key: {{adminApiKey}}
@@ -17,7 +20,7 @@ x-api-key: {{adminApiKey}}
     "name": "Organization 1"
 }
 
-### Admin: Register second organization
+### Register Organization 2
 POST {{baseUrl}}/api/organizations/register
 Content-Type: application/json
 x-api-key: {{adminApiKey}}
@@ -26,172 +29,397 @@ x-api-key: {{adminApiKey}}
     "name": "Organization 2"
 }
 
-### Admin: Get first organization details
+### Step 2: Test error cases for organization registration ###
+
+### Test with invalid API key
+POST {{baseUrl}}/api/organizations/register
+Content-Type: application/json
+x-api-key: {{invalidApiKey}}
+
+{
+    "name": "Invalid Org"
+}
+
+### Test with non-admin API key
+POST {{baseUrl}}/api/organizations/register
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "name": "Unauthorized Org"
+}
+
+### Test with missing required fields
+POST {{baseUrl}}/api/organizations/register
+Content-Type: application/json
+x-api-key: {{adminApiKey}}
+
+{}
+
+### Step 3: Test organization details retrieval ###
+
+### Get Organization 1 details with own API key
+GET {{baseUrl}}/api/organizations/{{org1Id}}
+x-api-key: {{org1ApiKey}}
+
+### Get Organization 1 details with admin API key
 GET {{baseUrl}}/api/organizations/{{org1Id}}
 x-api-key: {{adminApiKey}}
 
-### Admin: Get second organization details
+### Get Organization 2 details with Organization 1's API key (should fail)
 GET {{baseUrl}}/api/organizations/{{org2Id}}
-x-api-key: {{adminApiKey}}
-
-### Admin: Update first organization details
-PUT {{baseUrl}}/api/organizations/{{org1Id}}
-Content-Type: application/json
-x-api-key: {{adminApiKey}}
-
-{
-    "name": "Updated Organization 1"
-}
-
-### Admin: Update second organization details
-PUT {{baseUrl}}/api/organizations/{{org2Id}}
-Content-Type: application/json
-x-api-key: {{adminApiKey}}
-
-{
-    "name": "Updated Organization 2"
-}
-
-### First Organization Operations ###
-
-### Organization 1: Get own organization details
-GET {{baseUrl}}/api/organizations/{{org1Id}}
 x-api-key: {{org1ApiKey}}
 
-### Organization 1: Update own organization details
-PUT {{baseUrl}}/api/organizations/{{org1Id}}
-Content-Type: application/json
+### Get organization with invalid ID
+GET {{baseUrl}}/api/organizations/invalid-id
+x-api-key: {{adminApiKey}}
+
+### Step 4: Test organization listing with pagination and search ###
+
+### List organizations with pagination
+GET {{baseUrl}}/api/organizations?page=1&limit=10
+x-api-key: {{adminApiKey}}
+
+### List organizations with search and sorting
+GET {{baseUrl}}/api/organizations?search=Organization&sortBy=name&sortOrder=desc
+x-api-key: {{adminApiKey}}
+
+### List organizations with non-admin API key (should fail)
+GET {{baseUrl}}/api/organizations
 x-api-key: {{org1ApiKey}}
 
-{
-    "name": "Updated by Organization 1"
-}
+### Step 5: Create transactions for Organization 1 ###
 
-### Organization 1: Create first transaction
+### Create Transaction 1 for Organization 1
 POST {{baseUrl}}/api/transactions
 Content-Type: application/json
 x-api-key: {{org1ApiKey}}
 
 {
-    "originalAmount": "10.50",
+    "originalAmount": "23.83",
     "metadata": {
-        "description": "First transaction for Org 1"
+        "description": "Transaction 1 for Org 1"
     }
 }
 
-### Organization 1: Create second transaction
+### Create Transaction 2 for Organization 1
 POST {{baseUrl}}/api/transactions
 Content-Type: application/json
 x-api-key: {{org1ApiKey}}
 
 {
-    "originalAmount": "25.75",
+    "originalAmount": "11.53",
     "metadata": {
-        "description": "Second transaction for Org 1"
+        "description": "Transaction 2 for Org 1"
     }
 }
 
-### Organization 1: Create third transaction
+### Create Transaction 3 for Organization 1
 POST {{baseUrl}}/api/transactions
 Content-Type: application/json
 x-api-key: {{org1ApiKey}}
 
 {
-    "originalAmount": "15.25",
+    "originalAmount": "32",
     "metadata": {
-        "description": "Third transaction for Org 1"
+        "description": "Transaction 3 for Org 1"
     }
 }
 
-### Organization 1: List transactions
-GET {{baseUrl}}/api/transactions
+### Create Transaction 4 for Organization 1
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
 x-api-key: {{org1ApiKey}}
 
-### Organization 1: Get transaction report
-GET {{baseUrl}}/api/transactions/report
+{
+    "originalAmount": "19.71",
+    "metadata": {
+        "description": "Transaction 4 for Org 1"
+    }
+}
+
+### Create Transaction 5 for Organization 1
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
 x-api-key: {{org1ApiKey}}
 
-### Second Organization Operations ###
-
-### Organization 2: Get own organization details
-GET {{baseUrl}}/api/organizations/{{org2Id}}
-x-api-key: {{org2ApiKey}}
-
-### Organization 2: Update own organization details
-PUT {{baseUrl}}/api/organizations/{{org2Id}}
-Content-Type: application/json
-x-api-key: {{org2ApiKey}}
-
 {
-    "name": "Updated by Organization 2"
+    "originalAmount": "40.18",
+    "metadata": {
+        "description": "Transaction 5 for Org 1"
+    }
 }
 
-### Organization 2: Create first transaction
+### Step 6: Create transactions for Organization 2 ###
+
+### Create Transaction 1 for Organization 2
 POST {{baseUrl}}/api/transactions
 Content-Type: application/json
 x-api-key: {{org2ApiKey}}
 
 {
-    "originalAmount": "20.30",
+    "originalAmount": "14.08",
     "metadata": {
-        "description": "First transaction for Org 2"
+        "description": "Transaction 1 for Org 2"
     }
 }
 
-### Organization 2: Create second transaction
+### Create Transaction 2 for Organization 2
 POST {{baseUrl}}/api/transactions
 Content-Type: application/json
 x-api-key: {{org2ApiKey}}
 
 {
-    "originalAmount": "35.80",
+    "originalAmount": "34.56",
     "metadata": {
-        "description": "Second transaction for Org 2"
+        "description": "Transaction 2 for Org 2"
     }
 }
 
-### Organization 2: Create third transaction
+### Create Transaction 3 for Organization 2
 POST {{baseUrl}}/api/transactions
 Content-Type: application/json
 x-api-key: {{org2ApiKey}}
 
 {
-    "originalAmount": "12.45",
+    "originalAmount": "22.26",
     "metadata": {
-        "description": "Third transaction for Org 2"
+        "description": "Transaction 3 for Org 2"
     }
 }
 
-### Organization 2: List transactions
-GET {{baseUrl}}/api/transactions
+### Create Transaction 4 for Organization 2
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
 x-api-key: {{org2ApiKey}}
 
-### Organization 2: Get transaction report
-GET {{baseUrl}}/api/transactions/report
+{
+    "originalAmount": "42.73",
+    "metadata": {
+        "description": "Transaction 4 for Org 2"
+    }
+}
+
+### Create Transaction 5 for Organization 2
+POST {{baseUrl}}/api/transactions
+Content-Type: application/json
 x-api-key: {{org2ApiKey}}
 
-### Admin Transaction Operations ###
+{
+    "originalAmount": "30.44",
+    "metadata": {
+        "description": "Transaction 5 for Org 2"
+    }
+}
 
-### Admin: List all transactions
-GET {{baseUrl}}/api/transactions
+### Step 7: Test transaction details retrieval ###
+
+### Get Transaction 1 details with Organization 1's API key
+GET {{baseUrl}}/api/transactions/{{transaction1Id}}
+x-api-key: {{org1ApiKey}}
+
+### Get Transaction 1 details with admin API key
+GET {{baseUrl}}/api/transactions/{{transaction1Id}}
 x-api-key: {{adminApiKey}}
 
-### Admin: Get transaction report for all organizations
-GET {{baseUrl}}/api/transactions/report
+### Get Transaction 1 details with Organization 2's API key (should fail)
+GET {{baseUrl}}/api/transactions/{{transaction1Id}}
+x-api-key: {{org2ApiKey}}
+
+### Get transaction with invalid ID
+GET {{baseUrl}}/api/transactions/invalid-id
 x-api-key: {{adminApiKey}}
 
-### Admin: List transactions for Organization 1
-GET {{baseUrl}}/api/transactions?organizationId={{org1Id}}
-x-api-key: {{adminApiKey}}
+### Step 8: Test transaction listing with pagination, sorting, and date filtering ###
 
-### Admin: List transactions for Organization 2
+### List transactions with pagination and sorting
+GET {{baseUrl}}/api/transactions?page=1&limit=10&sortBy=originalAmount&sortOrder=desc
+x-api-key: {{org1ApiKey}}
+
+### List transactions with date filtering
+GET {{baseUrl}}/api/transactions?startDate=2025-04-09T00:00:00Z&endDate=2025-04-09T23:59:59Z
+x-api-key: {{org1ApiKey}}
+
+### List transactions for Organization 2 with Organization 1's API key (should fail)
 GET {{baseUrl}}/api/transactions?organizationId={{org2Id}}
+x-api-key: {{org1ApiKey}}
+
+### Step 9: Update organizations ###
+
+### Update Organization 1
+PUT {{baseUrl}}/api/organizations/{{org1Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "name": "Updated Organization 1",
+    "description": "This organization has been updated"
+}
+
+### Update Organization 2
+PUT {{baseUrl}}/api/organizations/{{org2Id}}
+Content-Type: application/json
+x-api-key: {{org2ApiKey}}
+
+{
+    "name": "Updated Organization 2",
+    "description": "This organization has been updated"
+}
+
+### Update Organization 2 with Organization 1's API key (should fail)
+PUT {{baseUrl}}/api/organizations/{{org2Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "name": "Unauthorized Update"
+}
+
+### Update organization with invalid ID
+PUT {{baseUrl}}/api/organizations/invalid-id
+Content-Type: application/json
 x-api-key: {{adminApiKey}}
 
-### Admin: Get transaction report for Organization 1
+{
+    "name": "Invalid Update"
+}
+
+### Step 10: Update transactions ###
+
+### Update Transaction 1
+PUT {{baseUrl}}/api/transactions/{{transaction1Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "metadata": {
+        "description": "Updated Transaction 1 for Org 1",
+        "updated": true
+    }
+}
+
+### Update Transaction 2
+PUT {{baseUrl}}/api/transactions/{{transaction2Id}}
+Content-Type: application/json
+x-api-key: {{org2ApiKey}}
+
+{
+    "metadata": {
+        "description": "Updated Transaction 1 for Org 2",
+        "updated": true
+    }
+}
+
+### Update Transaction 2 with Organization 1's API key (should fail)
+PUT {{baseUrl}}/api/transactions/{{transaction2Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "metadata": {
+        "description": "Unauthorized Update"
+    }
+}
+
+### Update transaction with invalid ID
+PUT {{baseUrl}}/api/transactions/invalid-id
+Content-Type: application/json
+x-api-key: {{adminApiKey}}
+
+{
+    "metadata": {
+        "description": "Invalid Update"
+    }
+}
+
+### Step 11: Get transaction reports with date filtering ###
+
+### Get transaction report with date filtering
+GET {{baseUrl}}/api/transactions/report?startDate=2025-04-09T00:00:00Z&endDate=2025-04-09T23:59:59Z
+x-api-key: {{org1ApiKey}}
+
+### Get transaction report for Organization 1 with admin API key
 GET {{baseUrl}}/api/transactions/report?organizationId={{org1Id}}
 x-api-key: {{adminApiKey}}
 
-### Admin: Get transaction report for Organization 2
+### Get transaction report for Organization 2 with Organization 1's API key (should fail)
 GET {{baseUrl}}/api/transactions/report?organizationId={{org2Id}}
-x-api-key: {{adminApiKey}} 
+x-api-key: {{org1ApiKey}}
+
+### Step 12: Test cross-organization access ###
+
+### Get Organization 2 details with Organization 1's API key (should fail)
+GET {{baseUrl}}/api/organizations/{{org2Id}}
+x-api-key: {{org1ApiKey}}
+
+### Update Organization 2 with Organization 1's API key (should fail)
+PUT {{baseUrl}}/api/organizations/{{org2Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "name": "Unauthorized Update"
+}
+
+### Get Transaction 2 details with Organization 1's API key (should fail)
+GET {{baseUrl}}/api/transactions/{{transaction2Id}}
+x-api-key: {{org1ApiKey}}
+
+### Update Transaction 2 with Organization 1's API key (should fail)
+PUT {{baseUrl}}/api/transactions/{{transaction2Id}}
+Content-Type: application/json
+x-api-key: {{org1ApiKey}}
+
+{
+    "metadata": {
+        "description": "Unauthorized Update"
+    }
+}
+
+### Step 13: Admin operations ###
+
+### List all organizations with admin API key
+GET {{baseUrl}}/api/organizations
+x-api-key: {{adminApiKey}}
+
+### List transactions for Organization 1 with admin API key
+GET {{baseUrl}}/api/transactions?organizationId={{org1Id}}
+x-api-key: {{adminApiKey}}
+
+### Get transaction report for Organization 2 with admin API key
+GET {{baseUrl}}/api/transactions/report?organizationId={{org2Id}}
+x-api-key: {{adminApiKey}}
+
+### Step 14: Cleanup ###
+
+### Delete Organization 1
+DELETE {{baseUrl}}/api/organizations/{{org1Id}}
+x-api-key: {{adminApiKey}}
+
+### Delete Organization 2
+DELETE {{baseUrl}}/api/organizations/{{org2Id}}
+x-api-key: {{adminApiKey}}
+
+### Delete Transaction 1
+DELETE {{baseUrl}}/api/transactions/{{transaction1Id}}
+x-api-key: {{adminApiKey}}
+
+### Delete Transaction 2
+DELETE {{baseUrl}}/api/transactions/{{transaction2Id}}
+x-api-key: {{adminApiKey}}
+
+### Delete organization with invalid ID
+DELETE {{baseUrl}}/api/organizations/invalid-id
+x-api-key: {{adminApiKey}}
+
+### Delete transaction with invalid ID
+DELETE {{baseUrl}}/api/transactions/invalid-id
+x-api-key: {{adminApiKey}}
+
+### Delete Organization 1 with Organization 1's API key (should fail)
+DELETE {{baseUrl}}/api/organizations/{{org1Id}}
+x-api-key: {{org1ApiKey}}
+
+### Delete Transaction 1 with Organization 1's API key (should fail)
+DELETE {{baseUrl}}/api/transactions/{{transaction1Id}}
+x-api-key: {{org1ApiKey}} 

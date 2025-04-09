@@ -15,7 +15,7 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "types": ["node", "jest", "@types/jest", "@types/supertest"],
+    "types": ["node", "jest", "supertest"],
     "typeRoots": ["./node_modules/@types", "./src/types"],
     "declaration": true,
     "sourceMap": true,
