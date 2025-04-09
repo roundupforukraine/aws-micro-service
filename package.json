@@ -21,6 +21,7 @@
     "generate-client": "./scripts/generate-client.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.782.0",
     "@prisma/client": "^5.10.0",
     "aws-sdk": "^2.1550.0",
     "cors": "^2.8.5",

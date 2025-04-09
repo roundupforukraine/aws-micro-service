@@ -1,8 +1,12 @@
 import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { AppError } from '../middleware/errorHandler';
 import { prisma } from '../config/database';
+import crypto from 'crypto';
 import { generateApiKey } from '../utils/apiKey';
+import { SecretsManager } from '@aws-sdk/client-secrets-manager';
+
+const secretsManager = new SecretsManager({ region: process.env.AWS_REGION || 'ap-southeast-1' });
 
 // Use mock client in test environment to avoid database interactions
 const prismaClient = process.env.NODE_ENV === 'test' 
@@ -273,6 +277,71 @@ export const deleteOrganization = async (req: Request, res: Response, next: Next
     return res.status(200).json({
       status: 'success',
       message: 'Organization deleted successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Initialize admin organization
+ * 
+ * This endpoint creates the initial admin organization if it doesn't exist.
+ * It's meant to be called only once during system setup.
+ * Requires an initialization key that matches the one stored in AWS Secrets Manager.
+ * 
+ * @param req - Express request object
+ * @param res - Express response object
+ * @param next - Express next function for error handling
+ */
+export const initializeAdmin = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { initKey } = req.body;
+
+    // Get the expected init key from Secrets Manager
+    const secretResponse = await secretsManager.getSecretValue({
+      SecretId: 'aws-micro-service/init-key'
+    });
+    
+    const expectedInitKey = secretResponse.SecretString;
+
+    if (!initKey || !expectedInitKey || initKey !== expectedInitKey) {
+      throw new AppError('Invalid initialization key', 401);
+    }
+
+    // Check if admin organization already exists
+    const existingAdmin = await prismaClient.organization.findFirst({
+      where: { isAdmin: true }
+    });
+
+    if (existingAdmin) {
+      throw new AppError('Admin organization already exists', 400);
+    }
+
+    // Generate a unique API key for the admin organization
+    const apiKey = 'admin-key-' + crypto.randomBytes(16).toString('hex');
+
+    // Create the admin organization
+    const adminOrg = await prismaClient.organization.create({
+      data: {
+        name: 'Admin Organization',
+        apiKey,
+        isAdmin: true
+      }
+    });
+
+    // Store the admin API key in Secrets Manager for backup
+    await secretsManager.putSecretValue({
+      SecretId: 'aws-micro-service/admin-api-key',
+      SecretString: apiKey
+    });
+
+    return res.status(201).json({
+      status: 'success',
+      data: {
+        organization: adminOrg,
+        message: 'Admin organization created successfully. Please save the API key as it won\'t be shown again.'
+      }
     });
   } catch (error) {
     next(error);
