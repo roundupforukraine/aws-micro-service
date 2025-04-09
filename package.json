@@ -1,6 +1,6 @@
 {
   "name": "ukraine-roundup-api",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "API service for Ukraine round-up donations",
   "main": "dist/index.js",
   "scripts": {
@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "test": "npm run test:setup && jest && npm run test:teardown",
+    "test": "npm run test:setup && jest --forceExit && npm run test:teardown",
     "test:setup": "prisma migrate deploy",
     "test:teardown": "echo 'Cleaning up test environment...'",
     "test:unit": "jest src/tests/unit",

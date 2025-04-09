@@ -5,7 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - 2024-04-08
+## [1.1.0] - 2024-04-09
+
+### Added
+- Codecov integration for test coverage reporting
+- GitHub Actions workflow for automated testing and coverage reporting
+- Test coverage badge in README
+- Improved test scripts with coverage reporting
+
+### Changed
+- Updated test script to use `--forceExit` to ensure proper cleanup
+- Enhanced documentation with badges for project status
+
+### Fixed
+- Fixed duplicate manual mock warning in test setup
+
+## [1.0.0] - 2024-03-15
+
+### Added
+- Initial release of the Ukraine Round-Up API Service
+- Organization registration and management
+- Transaction logging and reporting
+- API key authentication
+- Comprehensive test suite with 86 tests
 
 ### Added
 - Admin endpoint to delete organizations by ID
@@ -15,8 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Organization deletion now properly handles related transactions
-
-## [1.0.0] - 2024-04-08
 
 ### Added
 - Initial release of the Ukraine Round-Up API
