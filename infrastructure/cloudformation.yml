@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'AWS infrastructure for Micro Service Application'
+Description: AWS infrastructure for Micro Service Application
 
 Parameters:
   Environment:
@@ -9,17 +9,17 @@ Parameters:
       - dev
       - prod
     Description: Environment (dev/prod)
-  
+
   DBInstanceClass:
     Type: String
     Default: db.t3.micro
     Description: RDS instance class
-  
+
   DBName:
     Type: String
     Default: microservice
     Description: Database name
-  
+
   DBUsername:
     Type: String
     Default: dbadmin
@@ -77,7 +77,9 @@ Resources:
     Properties:
       VpcId: !Ref AppVPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [0, !GetAZs '']
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ''
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -89,7 +91,9 @@ Resources:
     Properties:
       VpcId: !Ref AppVPC
       CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [1, !GetAZs '']
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ''
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
@@ -216,4 +220,4 @@ Outputs:
 
   AppSecurityGroupId:
     Description: Application Security Group ID
-    Value: !Ref AppSecurityGroup 
+    Value: !Ref AppSecurityGroup

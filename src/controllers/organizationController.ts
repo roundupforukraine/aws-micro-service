@@ -131,6 +131,10 @@ export const updateOrganization = async (req: Request, res: Response, next: Next
     const { id } = req.params;
     const { name } = req.body;
 
+    if (!name) {
+      throw new AppError('Organization name is required', 400);
+    }
+
     // Find organization first
     const organization = await prismaClient.organization.findUnique({
       where: { id },
@@ -158,6 +162,12 @@ export const updateOrganization = async (req: Request, res: Response, next: Next
       },
     });
   } catch (error) {
+    // Handle Prisma unique constraint violations
+    const prismaError = error as PrismaError;
+    if (prismaError.code === 'P2002') {
+      next(new AppError('An organization with this name already exists', 400));
+      return;
+    }
     next(error);
   }
 };
@@ -296,44 +306,30 @@ export const deleteOrganization = async (req: Request, res: Response, next: Next
  */
 export const initializeAdmin = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    console.log('[initializeAdmin] Request received', { body: req.body });
     const { initKey } = req.body;
 
     // Get the expected init key from Secrets Manager
-    console.log('[initializeAdmin] Attempting to get init key from Secrets Manager');
     let secretResponse;
     try {
       secretResponse = await secretsManager.getSecretValue({
         SecretId: 'aws-micro-service/init-key'
       });
-      console.log('[initializeAdmin] Successfully retrieved init key from Secrets Manager');
     } catch (error) {
-      console.error('[initializeAdmin] Failed to get init key from Secrets Manager:', error);
       throw error;
     }
     
     const expectedInitKey = secretResponse.SecretString;
 
-    console.log('[initializeAdmin] Validating init key', { 
-      receivedKeyLength: initKey?.length, 
-      expectedKeyLength: expectedInitKey?.length,
-      matches: initKey === expectedInitKey 
-    });
-
     if (!initKey || !expectedInitKey || initKey !== expectedInitKey) {
-      console.log('[initializeAdmin] Invalid initialization key provided');
       throw new AppError('Invalid initialization key', 401);
     }
 
     // Check if admin organization already exists
-    console.log('[initializeAdmin] Checking for existing admin');
     const existingAdmin = await prismaClient.organization.findFirst({
       where: { isAdmin: true }
     });
-    console.log('[initializeAdmin] Admin check result:', { exists: !!existingAdmin });
 
     if (existingAdmin) {
-      console.log('[initializeAdmin] Admin organization already exists');
       throw new AppError('Admin organization already exists', 400);
     }
 
@@ -341,7 +337,6 @@ export const initializeAdmin = async (req: Request, res: Response, next: NextFun
     const apiKey = 'admin-key-' + crypto.randomBytes(16).toString('hex');
 
     // Create the admin organization
-    console.log('[initializeAdmin] Creating admin organization');
     let adminOrg;
     try {
       adminOrg = await prismaClient.organization.create({
@@ -351,24 +346,20 @@ export const initializeAdmin = async (req: Request, res: Response, next: NextFun
           isAdmin: true
         }
       });
-      console.log('[initializeAdmin] Successfully created admin organization');
     } catch (error) {
-      console.error('[initializeAdmin] Failed to create admin organization:', error);
       throw error;
     }
 
     // Store the admin API key in Secrets Manager for backup
-    console.log('[initializeAdmin] Storing admin API key in Secrets Manager');
     try {
       await secretsManager.putSecretValue({
         SecretId: 'aws-micro-service/admin-api-key',
         SecretString: apiKey
       });
-      console.log('[initializeAdmin] Successfully stored admin API key');
     } catch (error) {
-      console.error('[initializeAdmin] Failed to store admin API key:', error);
       // Don't throw here as the admin org is already created
       // but log the error for monitoring
+      next(error);
     }
 
     return res.status(201).json({
@@ -379,7 +370,6 @@ export const initializeAdmin = async (req: Request, res: Response, next: NextFun
       }
     });
   } catch (error) {
-    console.error('[initializeAdmin] Error in initialization process:', error);
     next(error);
   }
-}; 
+};

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Application Load Balancer for aws-micro-service'
+Description: Application Load Balancer for aws-micro-service
 
 Resources:
   ALBSecurityGroup:
@@ -69,4 +69,4 @@ Outputs:
 
   ALBTargetGroupArn:
     Description: ARN of the target group
-    Value: !Ref ALBTargetGroup 
+    Value: !Ref ALBTargetGroup

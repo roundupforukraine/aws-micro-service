@@ -2,11 +2,12 @@ import { PrismaClient, Organization, Transaction, Prisma } from '@prisma/client'
 import { jest } from '@jest/globals';
 import { AppError } from '../middleware/errorHandler';
 
-// Mock Prisma namespace for Decimal
+// Mock Prisma namespace for Decimal and PrismaClient
 jest.mock('@prisma/client', () => {
   const originalModule = jest.requireActual('@prisma/client') as typeof import('@prisma/client');
   return {
     ...originalModule,
+    PrismaClient: jest.fn().mockImplementation(() => prismaTestClient),
     Prisma: {
       ...originalModule.Prisma,
       Decimal: class Decimal {

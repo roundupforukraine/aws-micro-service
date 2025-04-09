@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import {
   createTransaction,
   getTransaction,
@@ -10,35 +10,6 @@ import { prismaTestClient } from '../../tests/setup';
 import { AppError } from '../../middleware/errorHandler';
 // Import helper functions
 import { createMockReq, createMockRes, createMockNext } from '../../tests/helpers';
-
-// Mock Prisma client
-const mockPrisma = {
-  transaction: {
-    create: jest.fn(),
-    findFirst: jest.fn(),
-    findMany: jest.fn(),
-    count: jest.fn(),
-    aggregate: jest.fn()
-  }
-} as unknown as jest.Mocked<PrismaClient>;
-
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => mockPrisma),
-  Prisma: {
-    Decimal: class Decimal {
-      private value: number;
-      constructor(value: string | number) {
-        this.value = Number(value);
-      }
-      toString(): string {
-        return this.value.toFixed(2);
-      }
-      toNumber(): number {
-        return this.value;
-      }
-    }
-  }
-}));
 
 // Create partial types for mocking
 type MockRequest = Partial<Request> & {
@@ -97,7 +68,7 @@ describe('Transaction Controller', () => {
         json: jest.fn(),
       };
 
-      (mockPrisma.transaction.create as jest.Mock).mockResolvedValueOnce({
+      (prismaTestClient.transaction.create as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         originalAmount: new Prisma.Decimal(10.75),
         roundedAmount: new Prisma.Decimal(11.00),
@@ -205,7 +176,7 @@ describe('Transaction Controller', () => {
         json: jest.fn(),
       };
 
-      (mockPrisma.transaction.findFirst as jest.Mock).mockResolvedValueOnce(null);
+      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(null);
 
       await getTransaction(req as Request, res as Response, next);
 
@@ -238,8 +209,8 @@ describe('Transaction Controller', () => {
       }];
       const total = 1;
 
-      (mockPrisma.transaction.findMany as jest.Mock).mockResolvedValueOnce(transactions);
-      (mockPrisma.transaction.count as jest.Mock).mockResolvedValueOnce(total);
+      (prismaTestClient.transaction.findMany as jest.Mock).mockResolvedValueOnce(transactions);
+      (prismaTestClient.transaction.count as jest.Mock).mockResolvedValueOnce(total);
 
       await listTransactions(req as Request, res as Response, next);
 
@@ -282,7 +253,7 @@ describe('Transaction Controller', () => {
         json: jest.fn(),
       };
 
-      (mockPrisma.transaction.aggregate as jest.Mock).mockResolvedValueOnce({
+      (prismaTestClient.transaction.aggregate as jest.Mock).mockResolvedValueOnce({
         _count: { id: 1 },
         _sum: { donationAmount: new Prisma.Decimal(0.25) },
       });
