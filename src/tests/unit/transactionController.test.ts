@@ -44,7 +44,7 @@ describe('Transaction Controller', () => {
         updatedAt: new Date(),
       } as Transaction;
 
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(mockTransaction);
       (prismaTestClient.transaction.update as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         metadata: { description: 'Updated transaction' },
@@ -147,7 +147,7 @@ describe('Transaction Controller', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(existingTransaction);
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(existingTransaction);
 
       await transactionController.updateTransaction(mockReq, mockRes as Response, mockNext);
 
@@ -172,7 +172,7 @@ describe('Transaction Controller', () => {
         updatedAt: new Date(),
       } as Transaction;
 
-      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTransaction);
+      (prismaTestClient.transaction.findUnique as jest.Mock).mockResolvedValueOnce(mockTransaction);
       (prismaTestClient.transaction.update as jest.Mock).mockResolvedValueOnce({
         ...mockTransaction,
         metadata: { description: 'Updated by admin' },
