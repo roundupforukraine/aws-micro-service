@@ -1,7 +1,14 @@
 #!/bin/bash
 
-# Load AWS credentials
-node -e "require('./load-aws-credentials.js')()"
+# Load AWS credentials and export them to environment
+eval "$(node -e '
+  const fs = require("fs");
+  const path = require("path");
+  const credentialsPath = path.join(__dirname, "aws-credentials.json");
+  const credentials = JSON.parse(fs.readFileSync(credentialsPath, "utf8"));
+  console.log(`export API_BASE_URL="${credentials.api.baseUrl}"`);
+  console.log(`export ADMIN_API_KEY="${credentials.api.adminApiKey}"`);
+')"
 
 # Set the base URL and API keys from environment variables
 BASE_URL="${API_BASE_URL}"

@@ -11,6 +11,9 @@ yarn-error.log*
 
 # AWS credentials
 aws-credentials.json
+scripts/load-aws-credentials.js
+!aws-credentials.template.json
+!scripts/load-aws-credentials.template.js
 
 # AWS task definitions
 simple-task-definition.json
