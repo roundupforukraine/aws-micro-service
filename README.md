@@ -1,7 +1,7 @@
 # Ukraine Round-Up API Service
 
 [![Tests](https://github.com/osapishchuk/aws-micro-service/actions/workflows/test.yml/badge.svg)](https://github.com/osapishchuk/aws-micro-service/actions/workflows/test.yml)
-[![Code Coverage](https://codecov.io/gh/osapishchuk/aws-micro-service/branch/develop/graph/badge.svg)](https://codecov.io/gh/osapishchuk/aws-micro-service)
+[![Code Coverage](https://codecov.io/gh/roundupforukraine/aws-micro-service/branch/develop/graph/badge.svg)](https://app.codecov.io/gh/roundupforukraine/aws-micro-service)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue.svg)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js-18.x-green.svg)](https://nodejs.org/)
