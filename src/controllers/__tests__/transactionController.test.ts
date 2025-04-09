@@ -7,6 +7,9 @@ import {
   getTransactionReport,
 } from '../transactionController';
 import { prismaTestClient } from '../../tests/setup';
+import { AppError } from '../../middleware/errorHandler';
+// Import helper functions
+import { createMockReq, createMockRes, createMockNext } from '../../tests/helpers';
 
 // Mock Prisma client
 const mockPrisma = {
@@ -153,22 +156,23 @@ describe('Transaction Controller', () => {
 
   describe('getTransaction', () => {
     it('should return transaction details', async () => {
-      const req: MockRequest = {
-        organization: mockOrg,
-        params: { id: 'test-transaction-id' },
-      };
+      // Use imported helper functions
+      const req = createMockReq({ params: { id: 'tx1' }, organization: { id: 'org1', isAdmin: false } }); 
+      const res = createMockRes();
+      const next = createMockNext();
 
-      const res: MockResponse = {
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
+      // Mock findFirst
+      const mockTx = {
+        id: 'tx1',
+        organizationId: 'org1',
+        originalAmount: new Prisma.Decimal('10.50'),
+        roundedAmount: new Prisma.Decimal('11.00'),
+        donationAmount: new Prisma.Decimal('0.50'),
+        metadata: { test: 'data' },
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
-
-      (mockPrisma.transaction.findFirst as jest.Mock).mockResolvedValueOnce({
-        ...mockTransaction,
-        originalAmount: new Prisma.Decimal(10.75),
-        roundedAmount: new Prisma.Decimal(11.00),
-        donationAmount: new Prisma.Decimal(0.25),
-      });
+      (prismaTestClient.transaction.findFirst as jest.Mock).mockResolvedValueOnce(mockTx);
 
       await getTransaction(req as Request, res as Response, next);
 
