@@ -1,17 +1,14 @@
 import { Request, Response } from 'express';
+import { PrismaClient } from '@prisma/client';
+import { registerOrganization, getOrganization, updateOrganization } from '../organizationController';
 import { prismaTestClient, Organization } from '../../tests/setup';
-import {
-  registerOrganization,
-  getOrganization,
-  updateOrganization,
-} from '../organizationController';
 import { AppError } from '../../middleware/errorHandler';
 import { mockRequest, mockNext } from '../../tests/helpers';
 
-// Mock crypto module to make API key generation deterministic
+// Mock crypto for deterministic API key generation
 jest.mock('crypto', () => ({
   randomBytes: jest.fn().mockReturnValue({
-    toString: () => 'test-random-bytes',
+    toString: jest.fn().mockReturnValue('test-api-key'),
   }),
 }));
 
@@ -27,10 +24,6 @@ type MockResponse = Partial<Response> & {
   status: jest.Mock;
   json: jest.Mock;
 };
-
-jest.mock('@prisma/client', () => ({
-  PrismaClient: jest.fn().mockImplementation(() => prismaTestClient),
-}));
 
 describe('Organization Controller', () => {
   let req: Partial<Request>;
